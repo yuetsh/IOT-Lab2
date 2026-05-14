@@ -85,7 +85,9 @@ const AREA_BASE: Record<Area, string> = {
 
 function getAreaStarter(area: Area): string {
   const features = AREA_FEATURES[area]
-  return `${AREA_BASE[area]}，${features.join('，')}`
+  const numToDrop = features.length <= 3 ? 1 : 2
+  const selected = features.slice(0, features.length - numToDrop)
+  return `${AREA_BASE[area]}，${selected.join('，')}`
 }
 
 const AREA_CRITERIA: Partial<Record<Area, string[]>> = {
