@@ -35,10 +35,15 @@ CREATE TABLE IF NOT EXISTS device_check_results (
 
 ## 后端
 
+### POST `/api/groups/:id/device-submissions`（修改）
+
+在现有逻辑基础上，将返回值从 `{ ok: true }` 改为 `{ ok: true, submission_id: number }`，使用 `db.query().run().lastInsertRowid`。
+
 ### POST `/api/groups/:id/device-check`
 
 - 接收 `{ submission_id: number }`
 - 从 `device_submissions` 读取对应 `placements_json` + `mermaid_code`
+- 通过 `mermaid_code` 查 `flowchart_history`（`WHERE group_id = ? AND mermaid_code = ? LIMIT 1`）反查 `area`
 - 构造 prompt：每条放置 `设备「{sticker_name}」→ 节点「{node_label}」` + 附 mermaid 流程图
 - 调用 DeepSeek，要求返回 `[{ device_name, node_label, passed, comment }]` JSON
 - 存入 `device_check_results`（关联 `group_id`、`submission_id`、`area`）
