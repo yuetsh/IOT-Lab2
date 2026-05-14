@@ -186,7 +186,11 @@ ${criteria.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}
     ).get(groupId, area) as { count: number }
     const checkCount = countRow.count
 
-    const referenceFlowchart = checkCount >= 3
+    // 用 groupId + area 哈希确定该组该区域的阈值（3/4/5），同组同区域每次一致
+    const hash = `${groupId}|${area}`.split('').reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 2654435761) >>> 0, 0)
+    const threshold = 3 + (hash % 3)
+
+    const referenceFlowchart = checkCount >= threshold
       ? (AREA_REFERENCE_FLOWCHARTS[area] ?? null)
       : null
 
