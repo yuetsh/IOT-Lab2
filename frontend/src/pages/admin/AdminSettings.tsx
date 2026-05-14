@@ -84,6 +84,16 @@ export default function AdminSettings() {
             if (!res.ok) throw new Error()
           }}
         />
+        <ActionCard
+          title="生成模拟数据"
+          description="在种子数据基础上追加完整模拟交互记录（流程图、聊天、设备提交），需先加载种子数据"
+          buttonLabel="生成模拟"
+          buttonColor="#0d9488"
+          onConfirm={async () => {
+            const res = await fetch('/api/admin/mock', { method: 'POST' })
+            if (!res.ok) throw new Error()
+          }}
+        />
       </div>
     </div>
   )
