@@ -16,6 +16,12 @@ interface Placement {
   sticker_filename: string
 }
 interface FlowNode { id: string; label: string }
+interface AiCheckResult {
+  device_name: string
+  node_label: string
+  passed: boolean
+  comment: string
+}
 interface NodeOverlay { nodeId: string; x: number; y: number; w: number; h: number }
 
 const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统'] as const
@@ -29,6 +35,9 @@ interface Props {
   onAreaChange?: (area: string) => void
   onSave: (placements: Omit<Placement, 'id'>[]) => void
   onSubmit?: (placements: Omit<Placement, 'id'>[]) => Promise<void>
+  onAiCheck?: () => Promise<void>
+  aiCheckResults?: AiCheckResult[] | null
+  aiCheckArea?: string | null
 }
 
 function getMermaidNodeLabel(node: SVGGElement, fallback: string) {
@@ -65,7 +74,70 @@ function DeviceCard({ sticker, isDragging, onPointerDown }: {
   )
 }
 
-export default function JournalTab({ mermaidCode, stickers, placements: initPlacements, area, areasWithFlowcharts, onAreaChange, onSave, onSubmit }: Props) {
+function CheckResultModal({ results, area, onClose }: { results: AiCheckResult[]; area?: string | null; onClose: () => void }) {
+  const passedCount = results.filter(r => r.passed).length
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 12, padding: 24, width: 480, maxWidth: '92vw',
+          maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: 16,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1a202c' }}>
+            AI检测结果{area ? ` · ${area}` : ''}
+          </h3>
+          <span style={{
+            fontSize: 12, fontWeight: 600, padding: '2px 10px', borderRadius: 10,
+            background: passedCount === results.length ? '#c6f6d5' : '#fed7d7',
+            color: passedCount === results.length ? '#276749' : '#c53030',
+          }}>
+            {passedCount} / {results.length} 通过
+          </span>
+        </div>
+
+        <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {results.map((r, i) => (
+            <div key={i} style={{
+              display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 8,
+              background: r.passed ? '#f0fff4' : '#fff5f5',
+              border: `1px solid ${r.passed ? '#c6f6d5' : '#fed7d7'}`,
+            }}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{r.passed ? '✓' : '✗'}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#2d3748', marginBottom: 2 }}>
+                  {r.device_name} → {r.node_label}
+                </div>
+                <div style={{ fontSize: 12, color: '#718096' }}>{r.comment}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            padding: '9px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+            background: '#edf2f7', color: '#4a5568', fontSize: 14, fontWeight: 600,
+          }}
+        >
+          关闭
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function JournalTab({ mermaidCode, stickers, placements: initPlacements, area, areasWithFlowcharts, onAreaChange, onSave, onSubmit, onAiCheck, aiCheckResults, aiCheckArea }: Props) {
   const [placements, setPlacements] = useState<Placement[]>(initPlacements.filter(p => p.node_id))
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>([])
   const [svgElement, setSvgElement] = useState<SVGSVGElement | null>(null)
@@ -74,6 +146,8 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [submitState, setSubmitState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [checkState, setCheckState] = useState<'idle' | 'checking' | 'done' | 'error'>('idle')
+  const [modalOpen, setModalOpen] = useState(false)
 
   const canvasRef = useRef<HTMLDivElement>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
@@ -384,8 +458,42 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
               {submitState === 'saving' ? '保存中…' : submitState === 'saved' ? '已保存 ✓' : '保存设备方案'}
             </button>
           )}
+          {onAiCheck && (
+            <button
+              disabled={checkState === 'checking'}
+              onClick={async () => {
+                setCheckState('checking')
+                try {
+                  await onAiCheck()
+                  setCheckState('done')
+                  setModalOpen(true)
+                } catch {
+                  setCheckState('error')
+                  showToast('AI 检测失败，请重试')
+                  setCheckState('idle')
+                }
+              }}
+              style={{
+                padding: '10px 0', borderRadius: 8, border: 'none',
+                cursor: checkState === 'checking' ? 'default' : 'pointer',
+                fontSize: 14, fontWeight: 600,
+                background: checkState === 'checking' ? '#edf2f7' : '#805ad5',
+                color: checkState === 'checking' ? '#a0aec0' : '#fff',
+                transition: 'background 0.2s',
+              }}
+            >
+              {checkState === 'checking' ? '检测中…' : 'AI检测'}
+            </button>
+          )}
         </div>
       </div>
+      {modalOpen && aiCheckResults && (
+        <CheckResultModal
+          results={aiCheckResults}
+          area={aiCheckArea}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
     </div>
   )
 }
