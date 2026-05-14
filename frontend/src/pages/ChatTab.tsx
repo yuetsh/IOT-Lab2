@@ -250,7 +250,7 @@ export default function ChatTab({
       }
       setCheckResults(data.results)
       setCheckCount(data.check_count)
-      setReferenceFlowchart(data.reference_flowchart ?? null)
+      setReferenceFlowchart(data.reference_flowchart)
     } finally {
       setChecking(false)
     }
