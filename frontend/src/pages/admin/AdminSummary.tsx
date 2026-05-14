@@ -1,7 +1,4 @@
 import { useEffect, useState } from 'react'
-// recharts components used in later tasks
-// @ts-ignore
-import { BarChart, Bar, Rectangle, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 export const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统'] as const
 export const AREA_SHORT = ['大门', '身份', '安防', 'LED', '绿植', '自助'] as const
