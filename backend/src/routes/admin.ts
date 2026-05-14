@@ -155,7 +155,7 @@ export const adminRouter = new Elysia()
     db.query('DELETE FROM device_submissions').run()
     db.query('DELETE FROM messages').run()
     db.query('DELETE FROM groups').run()
-    db.query("DELETE FROM sqlite_sequence WHERE name IN ('groups','messages','flowcharts','flowchart_history','check_results','device_submissions')").run()
+    db.query("DELETE FROM sqlite_sequence WHERE name IN ('groups','messages','flowcharts','flowchart_history','check_results','device_submissions','device_check_results')").run()
     return { ok: true }
   })
   .post('/api/admin/reset', () => {

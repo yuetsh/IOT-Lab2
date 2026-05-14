@@ -204,7 +204,7 @@ function AreaPanel({ areaData }: { areaData: AreaData }) {
 
 function GroupCard({ data }: { data: GroupData }) {
   const [activeArea, setActiveArea] = useState<Area>(AREAS[0])
-  const areaData = data.areas[activeArea] ?? { mermaid_code: null, placements: [], submission_created_at: null }
+  const areaData = data.areas[activeArea] ?? { mermaid_code: null, placements: [], submission_created_at: null, check_result: null }
   const submittedCount = AREAS.filter(a => (data.areas[a]?.placements.length ?? 0) > 0).length
 
   return (
