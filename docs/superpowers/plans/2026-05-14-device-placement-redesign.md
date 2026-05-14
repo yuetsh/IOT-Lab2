@@ -1,3 +1,37 @@
+# Device Placement Redesign Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace the two-step click-node + drag-to-slot pattern in `JournalTab.tsx` with direct drag-from-device-list-onto-flowchart-node assignment.
+
+**Architecture:** Remove `@dnd-kit` entirely. Use native pointer events on device cards and `document.elementFromPoint` to detect which flowchart node is under the pointer during drag. Render transparent `div` overlays positioned over each Mermaid SVG node to act as drop targets and display assigned devices.
+
+**Tech Stack:** React, TypeScript, native Pointer Events API, existing `MermaidRenderer`/`normalizeMermaidNodeId`/`upsertNodePlacement` utilities.
+
+---
+
+## File Map
+
+| File | Action | What changes |
+|------|--------|-------------|
+| `frontend/src/pages/JournalTab.tsx` | Modify | Full rewrite — remove @dnd-kit, add overlay + pointer drag system |
+
+No other files change. `GroupWorkspace.tsx` passes `onSave`/`onSubmit` by the same interface; `MermaidRenderer` `onRender` callback signature is unchanged.
+
+---
+
+### Task 1: Strip @dnd-kit infrastructure
+
+Remove all `@dnd-kit` code, the `DraggableSticker` and `SelectedNodeSlot` components, and the states that were only needed for the old flow (`activeSticker`, `selectedNodeId`). The file won't render devices yet — that comes in Task 2.
+
+**Files:**
+- Modify: `frontend/src/pages/JournalTab.tsx`
+
+- [ ] **Step 1: Replace the file with the stripped skeleton**
+
+Write `frontend/src/pages/JournalTab.tsx` with:
+
+```tsx
 import { useCallback, useEffect, useRef, useState } from 'react'
 import MermaidRenderer from '../components/MermaidRenderer'
 import { normalizeMermaidNodeId, upsertNodePlacement } from './journalState'
@@ -36,30 +70,6 @@ function getMermaidNodeLabel(node: SVGGElement, fallback: string) {
   return textLabel || fallback
 }
 
-function DeviceCard({ sticker, isDragging, onPointerDown }: {
-  sticker: Sticker
-  isDragging: boolean
-  onPointerDown: (e: React.PointerEvent) => void
-}) {
-  return (
-    <div
-      onPointerDown={onPointerDown}
-      style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-        padding: 8, borderRadius: 8, border: `1px solid ${sticker.theme_color}`, background: '#fff',
-        cursor: 'grab', opacity: isDragging ? 0.4 : 1, userSelect: 'none',
-      }}
-    >
-      <img src={stickerImageSrc(sticker)} alt={sticker.name} style={{ width: 56, height: 56, objectFit: 'contain', pointerEvents: 'none' }} />
-      <span style={{ width: 16, height: 4, borderRadius: 4, background: sticker.theme_color }} />
-      <span style={{ fontSize: 15, fontWeight: 700, color: '#2d3748', textAlign: 'center' }}>{sticker.name}</span>
-      {sticker.install_location && (
-        <span style={{ fontSize: 11, color: '#2b6cb0', textAlign: 'center' }}>{sticker.install_location}</span>
-      )}
-    </div>
-  )
-}
-
 export default function JournalTab({ mermaidCode, stickers, placements: initPlacements, onSave, onSubmit }: Props) {
   const [placements, setPlacements] = useState<Placement[]>(initPlacements.filter(p => p.node_id))
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>([])
@@ -76,13 +86,11 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
   const dragOverNodeIdRef = useRef<string | null>(null)
   const flowNodesRef = useRef<FlowNode[]>([])
   const onSaveRef = useRef(onSave)
-  const placementsRef = useRef<Placement[]>(placements)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   flowNodesRef.current = flowNodes
   onSaveRef.current = onSave
-  placementsRef.current = placements
 
   useEffect(() => {
     setPlacements(initPlacements.filter(p => p.node_id))
@@ -129,7 +137,7 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
 
   function removePlacement(nodeId: string) {
     setPlacements(prev => {
-      const next = prev.filter(p => !p.node_id || normalizeMermaidNodeId(p.node_id) !== nodeId)
+      const next = prev.filter(p => p.node_id !== nodeId)
       onSaveRef.current(next)
       return next
     })
@@ -162,7 +170,6 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
     const onUp = () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
       const nodeId = dragOverNodeIdRef.current
       const s = dragStickerRef.current
       setDragSticker(null)
@@ -171,29 +178,59 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
       dragOverNodeIdRef.current = null
       if (!nodeId || !s) return
       const nodeLabel = flowNodesRef.current.find(n => n.id === nodeId)?.label ?? nodeId
-      const currentPlacements = placementsRef.current
-      const wasReplaced = currentPlacements.some(p => p.node_id && normalizeMermaidNodeId(p.node_id) === nodeId)
-      const next = upsertNodePlacement(currentPlacements, {
-        sticker_id: s.id,
-        node_id: nodeId,
-        node_label: nodeLabel,
-        x: 0, y: 0, scale: 1,
-        sticker_name: s.name,
-        sticker_filename: s.filename,
+      setPlacements(prev => {
+        const wasReplaced = prev.some(p => p.node_id === nodeId)
+        const next = upsertNodePlacement(prev, {
+          sticker_id: s.id,
+          node_id: nodeId,
+          node_label: nodeLabel,
+          x: 0, y: 0, scale: 1,
+          sticker_name: s.name,
+          sticker_filename: s.filename,
+        })
+        onSaveRef.current(next)
+        showToast(wasReplaced ? `「${s.name}」已替换` : `「${s.name}」已指派到「${nodeLabel}」`)
+        return next
       })
-      setPlacements(next)
-      onSaveRef.current(next)
-      showToast(wasReplaced ? `「${s.name}」已替换` : `「${s.name}」已指派到「${nodeLabel}」`)
     }
 
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
   }
 
   const assignedCount = placements.filter(p => p.node_id).length
 
+  return (
+    <div style={{ display: 'flex', height: '100%', position: 'relative' }}>
+      {/* TODO: ghost, toast, flowchart panel, device panel — added in next tasks */}
+      <div style={{ padding: 32, color: '#a0aec0' }}>Task 1 skeleton — UI in next tasks</div>
+    </div>
+  )
+}
+```
 
+- [ ] **Step 2: Verify TypeScript compiles**
+
+```bash
+cd frontend && bun run build 2>&1 | tail -20
+```
+
+Expected: no errors (the skeleton is valid TS even with the placeholder div).
+
+---
+
+### Task 2: Add ghost, toast, and flowchart panel with overlays
+
+Replace the placeholder `<div>` with the real JSX: ghost element, toast, left panel with `MermaidRenderer` and node overlays.
+
+**Files:**
+- Modify: `frontend/src/pages/JournalTab.tsx` — replace the `return` block
+
+- [ ] **Step 1: Replace the return statement**
+
+Replace the entire `return (...)` in `JournalTab` (from `return (` through the closing `}`) with:
+
+```tsx
   return (
     <div style={{ display: 'flex', height: '100%', position: 'relative' }}>
       {/* Drag ghost */}
@@ -248,7 +285,7 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
 
           {/* Node overlays */}
           {overlays.map(overlay => {
-            const placement = placements.find(p => p.node_id && normalizeMermaidNodeId(p.node_id) === overlay.nodeId)
+            const placement = placements.find(p => p.node_id === overlay.nodeId)
             const isTarget = dragOverNodeId === overlay.nodeId
             return (
               <div
@@ -274,9 +311,8 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
                       style={{ width: 32, height: 32, objectFit: 'contain', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))', pointerEvents: 'none' }}
                     />
                     <span style={{
-                      fontSize: 13, fontWeight: 700, color: '#1a202c',
-                      background: 'rgba(255,255,255,0.92)', borderRadius: 3, padding: '2px 5px', whiteSpace: 'nowrap',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                      fontSize: 9, fontWeight: 600, color: '#1a202c',
+                      background: 'rgba(255,255,255,0.9)', borderRadius: 3, padding: '1px 3px', whiteSpace: 'nowrap',
                     }}>
                       {placement.sticker_name}
                     </span>
@@ -302,9 +338,102 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
         </div>
       </div>
 
+      {/* Right: device panel — added in Task 3 */}
+      <div style={{ flex: 1, padding: 16 }}>
+        <p style={{ color: '#a0aec0', fontSize: 13 }}>devices coming in Task 3</p>
+      </div>
+    </div>
+  )
+```
+
+- [ ] **Step 2: Verify build**
+
+```bash
+cd frontend && bun run build 2>&1 | tail -20
+```
+
+Expected: no TypeScript errors.
+
+---
+
+### Task 3: Add DeviceCard component and right panel
+
+Add the `DeviceCard` component above `JournalTab` and replace the placeholder right panel with the real device list + submit button + summary bar.
+
+**Files:**
+- Modify: `frontend/src/pages/JournalTab.tsx`
+
+- [ ] **Step 1: Add DeviceCard component**
+
+Insert this function before the `export default function JournalTab` line:
+
+```tsx
+function DeviceCard({ sticker, isDragging, onPointerDown }: {
+  sticker: Sticker
+  isDragging: boolean
+  onPointerDown: (e: React.PointerEvent) => void
+}) {
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+        padding: 8, borderRadius: 8, border: `1px solid ${sticker.theme_color}`, background: '#fff',
+        cursor: 'grab', opacity: isDragging ? 0.4 : 1, userSelect: 'none',
+      }}
+    >
+      <img src={stickerImageSrc(sticker)} alt={sticker.name} style={{ width: 56, height: 56, objectFit: 'contain', pointerEvents: 'none' }} />
+      <span style={{ width: 16, height: 4, borderRadius: 4, background: sticker.theme_color }} />
+      <span style={{ fontSize: 11, color: '#4a5568', textAlign: 'center' }}>{sticker.name}</span>
+      {sticker.install_location && (
+        <span style={{ fontSize: 10, color: '#2b6cb0', textAlign: 'center' }}>{sticker.install_location}</span>
+      )}
+    </div>
+  )
+}
+```
+
+- [ ] **Step 2: Replace the right panel placeholder**
+
+In the return JSX, find the placeholder right panel:
+
+```tsx
+      {/* Right: device panel — added in Task 3 */}
+      <div style={{ flex: 1, padding: 16 }}>
+        <p style={{ color: '#a0aec0', fontSize: 13 }}>devices coming in Task 3</p>
+      </div>
+```
+
+Replace with:
+
+```tsx
       {/* Right: device panel */}
-      <div style={{ flex: 1, overflow: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flex: 1, overflow: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {onSubmit && (
+          <button
+            disabled={submitState === 'saving' || placements.length === 0}
+            onClick={async () => {
+              if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+              setSubmitState('saving')
+              await onSubmit(placements)
+              setSubmitState('saved')
+              savedTimerRef.current = setTimeout(() => setSubmitState('idle'), 2500)
+            }}
+            style={{
+              padding: '10px 0', borderRadius: 8, border: 'none',
+              cursor: placements.length === 0 ? 'default' : 'pointer',
+              fontSize: 14, fontWeight: 600,
+              background: submitState === 'saved' ? '#c6f6d5' : placements.length === 0 ? '#edf2f7' : '#4299e1',
+              color: submitState === 'saved' ? '#276749' : placements.length === 0 ? '#a0aec0' : '#fff',
+              transition: 'background 0.2s, color 0.2s',
+            }}
+          >
+            {submitState === 'saving' ? '保存中…' : submitState === 'saved' ? '已保存 ✓' : '保存设备方案'}
+          </button>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, overflow: 'hidden' }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#4a5568', flexShrink: 0 }}>设备</p>
           {stickers.length === 0 && (
             <p style={{ color: '#a0aec0', fontSize: 13 }}>暂无设备，教师可在后台上传</p>
           )}
@@ -320,36 +449,107 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
               ))}
             </div>
           </div>
-        </div>
-
-        <div style={{ flexShrink: 0, borderTop: '1px solid #e2e8f0', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p style={{ margin: 0, fontSize: 11, color: '#718096' }}>
+          <p style={{ margin: 0, fontSize: 11, color: '#718096', flexShrink: 0, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
             已指派 <span style={{ color: '#38a169', fontWeight: 600 }}>{assignedCount}</span> / {flowNodes.length} 个节点
           </p>
-          {onSubmit && (
-            <button
-              disabled={submitState === 'saving' || placements.length === 0}
-              onClick={async () => {
-                if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-                setSubmitState('saving')
-                await onSubmit(placements)
-                setSubmitState('saved')
-                savedTimerRef.current = setTimeout(() => setSubmitState('idle'), 2500)
-              }}
-              style={{
-                padding: '10px 0', borderRadius: 8, border: 'none',
-                cursor: placements.length === 0 ? 'default' : 'pointer',
-                fontSize: 14, fontWeight: 600,
-                background: submitState === 'saved' ? '#c6f6d5' : placements.length === 0 ? '#edf2f7' : '#4299e1',
-                color: submitState === 'saved' ? '#276749' : placements.length === 0 ? '#a0aec0' : '#fff',
-                transition: 'background 0.2s, color 0.2s',
-              }}
-            >
-              {submitState === 'saving' ? '保存中…' : submitState === 'saved' ? '已保存 ✓' : '保存设备方案'}
-            </button>
-          )}
         </div>
       </div>
-    </div>
-  )
-}
+```
+
+- [ ] **Step 3: Build and verify**
+
+```bash
+cd frontend && bun run build 2>&1 | tail -20
+```
+
+Expected: clean build, no errors.
+
+---
+
+### Task 4: Manual smoke test
+
+Start dev server and test the full interaction.
+
+- [ ] **Step 1: Start dev server**
+
+```bash
+bun run dev
+```
+
+Open http://localhost:5173, navigate to a group workspace, go to 设备台 tab.
+
+- [ ] **Step 2: Verify flowchart renders with overlays**
+
+The flowchart should appear on the left. Each node should have a transparent overlay (invisible until dragging).
+
+- [ ] **Step 3: Test drag-to-assign**
+
+Drag a device from the right panel onto a flowchart node. Expected:
+- Ghost image follows the pointer
+- Hovered node shows blue highlight + "放这里" text
+- On release: device badge appears on the node, toast shows "已指派到「节点名」"
+- Summary bar updates: "已指派 1 / N 个节点"
+
+- [ ] **Step 4: Test replace**
+
+Drag a different device onto the already-assigned node. Expected:
+- Toast shows "已替换"
+- Node badge updates to the new device
+
+- [ ] **Step 5: Test remove**
+
+Hover over an assigned node. Expected: red × button appears in top-right corner of the badge. Click it — device is removed, badge disappears.
+
+- [ ] **Step 6: Test drag cancel**
+
+Start dragging a device and release outside any node (on the flowchart background or outside the canvas). Expected: no assignment made, ghost disappears.
+
+- [ ] **Step 7: Test submit**
+
+Assign at least one device, click "保存设备方案". Expected: button shows "保存中…" then "已保存 ✓".
+
+---
+
+### Task 5: Commit
+
+- [ ] **Step 1: Commit**
+
+```bash
+git add frontend/src/pages/JournalTab.tsx
+git commit -m "refactor: redesign device placement — drag directly onto flowchart nodes
+
+Replace two-step click-node + drag-to-slot with direct drag from device
+list onto flowchart nodes. Uses native pointer events and elementFromPoint
+for node detection. Removes @dnd-kit dependency from JournalTab."
+```
+
+---
+
+## Self-Review
+
+**Spec coverage:**
+
+| Spec requirement | Task |
+|-----------------|------|
+| Right panel: only device list, remove SelectedNodeSlot | Task 3 |
+| Flowchart nodes become drop targets (overlay divs) | Task 2 |
+| Drag ghost follows pointer | Task 2 |
+| Hover highlight + "放这里" text | Task 2 |
+| Drop = assign, call onSave | Task 1 (`handleDeviceDragStart`) |
+| Replace on re-drop | Task 1 (`upsertNodePlacement`) |
+| Remove via × button | Task 2 |
+| Toast feedback | Task 1 (`showToast`) |
+| Summary bar: assigned / total | Task 3 |
+| Submit button preserved | Task 3 |
+| Resize recomputes overlays | Task 1 (resize listener) |
+
+All spec requirements covered. ✓
+
+**Placeholder scan:** No TBD/TODO in final tasks. Task 1 and 2 intermediate TODOs are replaced by Task 3. ✓
+
+**Type consistency:**
+- `NodeOverlay` defined once in Task 1, used in Task 2 overlay rendering ✓
+- `FlowNode` unchanged from original ✓
+- `Placement` unchanged from original ✓
+- `DeviceCard` props: `sticker: Sticker`, `isDragging: boolean`, `onPointerDown: (e: React.PointerEvent) => void` — consistent throughout ✓
+- `handleDeviceDragStart(e: React.PointerEvent, sticker: Sticker)` — called as `e => handleDeviceDragStart(e, s)` in Task 3 ✓

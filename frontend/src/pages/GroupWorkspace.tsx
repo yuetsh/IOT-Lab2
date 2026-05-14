@@ -3,7 +3,7 @@ import { Navigate, useLocation, useParams, useNavigate, useSearchParams } from '
 import ChatTab, { type WorkspaceContext } from './ChatTab'
 import JournalTab from './JournalTab'
 import { getGroupWorkspacePath, isGroupWorkspaceTab } from './groupRoutes'
-import { shouldClearPlacementsOnFlowchartChange } from './journalState'
+import { normalizeMermaidNodeId, shouldClearPlacementsOnFlowchartChange } from './journalState'
 
 interface Sticker { id: number; name: string; description: string; install_location: string; theme_color: string; filename: string }
 interface Placement {
@@ -37,6 +37,8 @@ export default function GroupWorkspace() {
   const [placements, setPlacements] = useState<Placement[]>([])
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContext>(routeContext)
   const lastNonEmptyMermaidCodeRef = useRef<string | null>(null)
+  const mermaidCodeRef = useRef<string | null>(null)
+  mermaidCodeRef.current = mermaidCode
 
   useEffect(() => {
     if (!id || !isGroupWorkspaceTab(tab)) return
@@ -82,7 +84,7 @@ export default function GroupWorkspace() {
           .filter(p => p.node_id && p.node_label)
           .map(p => ({
             sticker_id: p.sticker_id,
-            node_id: p.node_id,
+            node_id: normalizeMermaidNodeId(p.node_id!),
             node_label: p.node_label,
           }))
       })
@@ -99,11 +101,12 @@ export default function GroupWorkspace() {
           .filter(p => p.node_id && p.node_label)
           .map(p => ({
             sticker_id: p.sticker_id,
-            node_id: p.node_id!,
+            node_id: normalizeMermaidNodeId(p.node_id!),
             node_label: p.node_label!,
             sticker_name: p.sticker_name,
             sticker_filename: p.sticker_filename,
-          }))
+          })),
+        mermaid_code: mermaidCodeRef.current,
       })
     })
   }, [id])

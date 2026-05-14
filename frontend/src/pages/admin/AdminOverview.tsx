@@ -7,6 +7,7 @@ interface HistoryEntry {
   id: number
   mermaid_code: string
   created_at: string
+  user_prompt: string | null
   check_runs: CheckRun[]
 }
 interface GroupFull {
@@ -18,6 +19,11 @@ interface GroupFull {
 
 function fmt(dt: string) {
   return new Date(dt + 'Z').toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+export function getHistoryPromptText(userPrompt: string | null | undefined): string {
+  const prompt = userPrompt?.trim()
+  return prompt ? prompt : '未记录提示词'
 }
 
 function AreaHistory({ entries }: { area: string; entries: HistoryEntry[] }) {
@@ -48,6 +54,25 @@ function AreaHistory({ entries }: { area: string; entries: HistoryEntry[] }) {
 
             {/* 流程图 */}
             <div style={{ padding: 10, background: '#fafafa', overflow: 'hidden' }}>
+              <div style={{
+                padding: '8px 10px',
+                border: '1px solid #edf2f7',
+                borderRadius: 8,
+                background: '#fff',
+                marginBottom: 10,
+              }}>
+                <div style={{ fontSize: 10, color: '#718096', marginBottom: 4 }}>提示词</div>
+                <div style={{
+                  fontSize: 12,
+                  color: entry.user_prompt?.trim() ? '#2d3748' : '#a0aec0',
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: 84,
+                  overflowY: 'auto',
+                }}>
+                  {getHistoryPromptText(entry.user_prompt)}
+                </div>
+              </div>
               <MermaidRenderer code={entry.mermaid_code} />
             </div>
 

@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia'
 import { db } from '../db'
 import { buildDeepSeekMessages } from '../chatContext'
 import { shouldClearJournalPlacementsForFlowchartChange } from '../flowchartState'
+import { insertFlowchartHistory } from '../flowchartHistory'
 
 const SYSTEM_PROMPT = `你是物联网施工方案设计师，专注于智慧图书馆系统设计。用中文回复。
 
@@ -36,7 +37,7 @@ const MERMAID_REGEX = /```mermaid\n([\s\S]*?)\n```/
 export const chatRouter = new Elysia()
   .post('/api/groups/:id/chat', async ({ params, body }) => {
     const groupId = Number(params.id)
-    const { message, area } = body
+    const { message, area, userPrompt } = body
 
     const history = area
       ? db.query(
@@ -103,15 +104,21 @@ export const chatRouter = new Elysia()
         VALUES (?, ?, ?, datetime('now'))
         ON CONFLICT(group_id) DO UPDATE SET mermaid_code = excluded.mermaid_code, area = excluded.area, updated_at = excluded.updated_at
       `).run(groupId, mermaidCode, area ?? null)
-      db.query(`
-        INSERT INTO flowchart_history (group_id, mermaid_code, area)
-        VALUES (?, ?, ?)
-      `).run(groupId, mermaidCode, area ?? null)
+      insertFlowchartHistory(db, {
+        groupId,
+        mermaidCode,
+        area: area ?? null,
+        userPrompt: userPrompt ?? null,
+      })
     }
 
     return { content: assistantContent }
   }, {
-    body: t.Object({ message: t.String({ minLength: 1 }), area: t.Optional(t.String()) })
+    body: t.Object({
+      message: t.String({ minLength: 1 }),
+      area: t.Optional(t.String()),
+      userPrompt: t.Optional(t.String()),
+    })
   })
   .post('/api/groups/:id/check', async ({ params, body }) => {
     const groupId = Number(params.id)

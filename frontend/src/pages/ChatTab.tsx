@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import MermaidRenderer from '../components/MermaidRenderer'
 import { buildFixPrompt, hasFailedCheckResults } from './chatPrompt'
+import { buildChatRequestPayload } from './chatRequest'
 
 interface Message { id: number; role: string; content: string }
 interface Flowchart { id: number | null; mermaid_code: string; area: string | null }
@@ -227,7 +228,6 @@ export default function ChatTab({
       alert('请先选择一个功能区域')
       return
     }
-    const message = `请为「${selectedArea}」功能模块生成流程图。\n用户需求：${text}`
     setInput('')
     setLoading(true)
     setCheckResults(null)
@@ -235,7 +235,7 @@ export default function ChatTab({
       await fetch(`/api/groups/${groupId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, area: selectedArea })
+        body: JSON.stringify(buildChatRequestPayload(selectedArea, text))
       })
       await reloadArea()
     } finally {

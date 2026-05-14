@@ -42,9 +42,12 @@ db.query(`
     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
     mermaid_code TEXT NOT NULL,
     area TEXT,
+    user_prompt TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   )
 `).run()
+
+try { db.query('ALTER TABLE flowchart_history ADD COLUMN user_prompt TEXT').run() } catch {}
 
 db.query(`
   CREATE TABLE IF NOT EXISTS check_results (
@@ -88,6 +91,7 @@ db.query(`
 
 try { db.query('ALTER TABLE journal_placements ADD COLUMN node_id TEXT').run() } catch {}
 try { db.query('ALTER TABLE journal_placements ADD COLUMN node_label TEXT').run() } catch {}
+try { db.query('ALTER TABLE device_submissions ADD COLUMN mermaid_code TEXT').run() } catch {}
 
 db.query(`
   CREATE TABLE IF NOT EXISTS device_submissions (

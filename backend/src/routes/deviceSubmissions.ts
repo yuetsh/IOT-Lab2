@@ -4,8 +4,8 @@ import { db } from '../db'
 export const deviceSubmissionsRouter = new Elysia()
   .post('/api/groups/:id/device-submissions', ({ params, body }) => {
     db.query(
-      'INSERT INTO device_submissions (group_id, placements_json) VALUES (?, ?)'
-    ).run(Number(params.id), JSON.stringify(body.placements))
+      'INSERT INTO device_submissions (group_id, placements_json, mermaid_code) VALUES (?, ?, ?)'
+    ).run(Number(params.id), JSON.stringify(body.placements), body.mermaid_code ?? null)
     return { ok: true }
   }, {
     body: t.Object({
@@ -15,7 +15,8 @@ export const deviceSubmissionsRouter = new Elysia()
         node_label: t.String(),
         sticker_name: t.String(),
         sticker_filename: t.String(),
-      }))
+      })),
+      mermaid_code: t.Optional(t.Nullable(t.String())),
     })
   })
   .get('/api/groups/:id/device-submissions', ({ params }) => {

@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设备台 × 流程图 — 新交互设计</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; color: #2d3748; }
+
+  .page-header {
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .page-header h1 { font-size: 15px; font-weight: 600; }
+  .tab-bar { display: flex; gap: 4px; background: #f7fafc; border-radius: 8px; padding: 3px; }
+  .tab { padding: 5px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; background: transparent; color: #718096; }
+  .tab.active { background: #fff; color: #2d3748; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .save-btn {
+    margin-left: auto;
+    padding: 7px 18px; border-radius: 7px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 600; background: #4299e1; color: #fff;
+  }
+  .save-btn:disabled { background: #edf2f7; color: #a0aec0; cursor: default; }
+
+  .workspace {
+    display: flex;
+    height: calc(100vh - 53px);
+  }
+
+  /* ===== 左侧：流程图 ===== */
+  .flowchart-panel {
+    flex: 3;
+    padding: 16px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .flowchart-hint {
+    font-size: 12px;
+    color: #718096;
+    background: #fffbeb;
+    border: 1px solid #f6e05e;
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+  .flowchart-canvas {
+    position: relative;
+    background: #fafafa;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 24px;
+    flex: 1;
+    min-height: 420px;
+  }
+
+  /* SVG 流程图模拟 */
+  .flow-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 节点 drop target overlay */
+  .node-overlay {
+    position: absolute;
+    border-radius: 8px;
+    cursor: default;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 2px solid transparent;
+  }
+  .node-overlay.drop-active {
+    background: rgba(66, 153, 225, 0.12) !important;
+    border-color: #4299e1 !important;
+    box-shadow: 0 0 0 3px rgba(66,153,225,0.25) !important;
+    transform: scale(1.04);
+  }
+  .node-overlay.has-device {
+    cursor: pointer;
+  }
+
+  .node-label {
+    font-size: 11px;
+    color: #4a5568;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .node-device-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    position: relative;
+  }
+  .node-device-badge img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    pointer-events: none;
+  }
+  .node-device-badge .badge-name {
+    font-size: 9px;
+    font-weight: 600;
+    color: #1a202c;
+    background: rgba(255,255,255,0.92);
+    border-radius: 3px;
+    padding: 1px 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    white-space: nowrap;
+  }
+  .node-device-badge .remove-btn {
+    position: absolute;
+    top: -8px;
+    right: -10px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fc8181;
+    border: none;
+    color: #fff;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .node-overlay.has-device:hover .remove-btn {
+    display: flex;
+  }
+
+  /* 空节点提示 */
+  .node-empty-hint {
+    font-size: 10px;
+    color: #a0aec0;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  /* ===== 右侧：设备列表 ===== */
+  .device-panel {
+    width: 200px;
+    flex-shrink: 0;
+    border-left: 1px solid #e2e8f0;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .device-panel-header {
+    padding: 12px 14px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #4a5568;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+  }
+  .device-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .device-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1.5px solid #e2e8f0;
+    background: #fff;
+    cursor: grab;
+    transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.1s;
+    user-select: none;
+  }
+  .device-card:hover {
+    border-color: #90cdf4;
+    box-shadow: 0 2px 8px rgba(66,153,225,0.15);
+  }
+  .device-card.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+  }
+  .device-card img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+  .device-card-info { flex: 1; min-width: 0; }
+  .device-card-name { font-size: 12px; font-weight: 600; color: #2d3748; }
+  .device-card-loc { font-size: 10px; color: #2b6cb0; margin-top: 1px; }
+
+  /* 拖拽幽灵 */
+  .drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transform: translate(-50%, -50%) scale(1.1);
+    filter: drop-shadow(0 6px 16px rgba(0,0,0,0.3));
+  }
+  .drag-ghost img {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+  }
+  .drag-ghost .ghost-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #2d3748;
+    background: rgba(255,255,255,0.95);
+    border-radius: 4px;
+    padding: 2px 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    white-space: nowrap;
+  }
+
+  /* 成功提示 toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #276749;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 10000;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* 节点箭头连线（纯装饰） */
+  .flow-arrows {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+  }
+
+  /* 状态汇总栏（底部） */
+  .summary-bar {
+    border-top: 1px solid #e2e8f0;
+    padding: 8px 14px;
+    font-size: 11px;
+    color: #718096;
+    flex-shrink: 0;
+  }
+  .summary-bar span { color: #38a169; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="page-header">
+  <div class="tab-bar">
+    <button class="tab">流程图</button>
+    <button class="tab active">设备台</button>
+    <button class="tab">日志</button>
+  </div>
+  <h1 style="color:#718096; font-weight:400; font-size:13px">第3组</h1>
+  <button class="save-btn" id="saveBtn" disabled>保存方案</button>
+</div>
+
+<!-- 主区域 -->
+<div class="workspace">
+  <!-- 左侧流程图 -->
+  <div class="flowchart-panel">
+    <div class="flowchart-hint">💡 从右侧拖拽设备，直接放到流程图节点上完成指派</div>
+    <div class="flowchart-canvas" id="canvas">
+
+      <!-- SVG 箭头连线 -->
+      <svg class="flow-arrows" id="arrowSvg"></svg>
+
+      <!-- 流程图节点（模拟 Mermaid 渲染结果） -->
+      <!-- 节点数据由 JS 创建 -->
+    </div>
+  </div>
+
+  <!-- 右侧设备列表 -->
+  <div class="device-panel">
+    <div class="device-panel-header">设备列表</div>
+    <div class="device-list" id="deviceList"></div>
+    <div class="summary-bar" id="summaryBar">已指派 <span id="assignedCount">0</span> / 5 个节点</div>
+  </div>
+</div>
+
+<!-- 拖拽幽灵 -->
+<div class="drag-ghost" id="dragGhost">
+  <img id="ghostImg" src="" alt="">
+  <div class="ghost-label" id="ghostLabel"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 数据 =====
+const NODES = [
+  { id: 'start',    label: '开始',    x: 160, y: 40,  w: 100, h: 42 },
+  { id: 'sensor',   label: '传感器采集', x: 80,  y: 130, w: 130, h: 42 },
+  { id: 'process',  label: '数据处理', x: 260, y: 130, w: 110, h: 42 },
+  { id: 'alarm',    label: '报警判断', x: 80,  y: 220, w: 110, h: 42 },
+  { id: 'output',   label: '输出控制', x: 260, y: 220, w: 110, h: 42 },
+  { id: 'end',      label: '结束',    x: 160, y: 310, w: 100, h: 42 },
+];
+
+const ARROWS = [
+  ['start','sensor'], ['start','process'],
+  ['sensor','alarm'], ['process','output'],
+  ['alarm','end'], ['output','end'],
+];
+
+// 使用占位图标（SVG inline）
+function makeIcon(color, letter) {
+  return `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'><rect x='4' y='4' width='56' height='56' rx='12' fill='${encodeURIComponent(color)}' opacity='0.15'/><rect x='10' y='10' width='44' height='44' rx='8' fill='${encodeURIComponent(color)}' opacity='0.3'/><text x='32' y='40' font-size='22' font-family='sans-serif' text-anchor='middle' fill='${encodeURIComponent(color)}' font-weight='bold'>${letter}</text></svg>`;
+}
+
+const DEVICES = [
+  { id: 1, name: '温度传感器', loc: '测量点',  color: '#e53e3e', letter: 'T', filename: '' },
+  { id: 2, name: '压力变送器', loc: '管道接口', color: '#dd6b20', letter: 'P', filename: '' },
+  { id: 3, name: '流量计',     loc: '主管道',  color: '#d69e2e', letter: 'F', filename: '' },
+  { id: 4, name: '控制阀',     loc: '执行机构', color: '#38a169', letter: 'V', filename: '' },
+  { id: 5, name: '报警器',     loc: '控制室',  color: '#3182ce', letter: 'A', filename: '' },
+];
+
+DEVICES.forEach(d => { d.iconSrc = makeIcon(d.color, d.letter); });
+
+// ===== 状态 =====
+const placements = {}; // nodeId -> device
+let dragDevice = null;
+let activeOverlay = null;
+
+// ===== 渲染节点 overlay =====
+function renderNodes() {
+  const canvas = document.getElementById('canvas');
+  // 移除旧节点
+  canvas.querySelectorAll('.node-overlay').forEach(el => el.remove());
+
+  NODES.forEach(node => {
+    const el = document.createElement('div');
+    el.className = 'node-overlay' + (placements[node.id] ? ' has-device' : '');
+    el.dataset.nodeId = node.id;
+    el.style.cssText = `left:${node.x}px; top:${node.y}px; width:${node.w}px; height:${node.h}px;`;
+
+    const device = placements[node.id];
+    if (device) {
+      el.innerHTML = `
+        <div class="node-device-badge">
+          <img src="${device.iconSrc}" alt="${device.name}">
+          <span class="badge-name">${device.name}</span>
+          <button class="remove-btn" data-node-id="${node.id}">×</button>
+        </div>
+        <span class="node-label">${node.label}</span>
+      `;
+      el.querySelector('.remove-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        delete placements[node.id];
+        renderNodes();
+        updateSummary();
+      });
+    } else {
+      el.innerHTML = `
+        <span class="node-label">${node.label}</span>
+        <span class="node-empty-hint" id="hint-${node.id}" style="display:none">放这里</span>
+      `;
+    }
+
+    canvas.appendChild(el);
+  });
+}
+
+// ===== 画箭头 =====
+function drawArrows() {
+  const svg = document.getElementById('arrowSvg');
+  svg.innerHTML = '';
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML = `<marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <path d="M0,0 L0,6 L8,3 z" fill="#cbd5e0"/>
+  </marker>`;
+  svg.appendChild(defs);
+
+  ARROWS.forEach(([fromId, toId]) => {
+    const from = NODES.find(n => n.id === fromId);
+    const to   = NODES.find(n => n.id === toId);
+    const x1 = from.x + from.w / 2;
+    const y1 = from.y + from.h;
+    const x2 = to.x   + to.w   / 2;
+    const y2 = to.y;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    const cy = (y1 + y2) / 2;
+    path.setAttribute('d', `M${x1},${y1} C${x1},${cy} ${x2},${cy} ${x2},${y2}`);
+    path.setAttribute('stroke','#cbd5e0');
+    path.setAttribute('stroke-width','1.5');
+    path.setAttribute('fill','none');
+    path.setAttribute('marker-end','url(#arr)');
+    svg.appendChild(path);
+  });
+}
+
+// ===== 渲染设备列表 =====
+function renderDevices() {
+  const list = document.getElementById('deviceList');
+  list.innerHTML = '';
+  DEVICES.forEach(device => {
+    const card = document.createElement('div');
+    card.className = 'device-card';
+    card.dataset.deviceId = device.id;
+    card.innerHTML = `
+      <img src="${device.iconSrc}" alt="${device.name}">
+      <div class="device-card-info">
+        <div class="device-card-name">${device.name}</div>
+        ${device.loc ? `<div class="device-card-loc">${device.loc}</div>` : ''}
+      </div>
+    `;
+    card.addEventListener('pointerdown', onDeviceDragStart(device, card));
+    list.appendChild(card);
+  });
+}
+
+// ===== 拖拽逻辑 =====
+function onDeviceDragStart(device, card) {
+  return function(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+
+    dragDevice = device;
+    card.classList.add('dragging');
+
+    const ghost = document.getElementById('dragGhost');
+    document.getElementById('ghostImg').src = device.iconSrc;
+    document.getElementById('ghostLabel').textContent = device.name;
+    ghost.style.display = 'flex';
+    ghost.style.left = e.clientX + 'px';
+    ghost.style.top  = e.clientY + 'px';
+
+    // 显示所有空节点的"放这里"提示
+    document.querySelectorAll('.node-empty-hint').forEach(el => el.style.display = '');
+
+    function onMove(ev) {
+      ghost.style.left = ev.clientX + 'px';
+      ghost.style.top  = ev.clientY + 'px';
+
+      // 碰撞检测
+      ghost.style.display = 'none';
+      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      ghost.style.display = 'flex';
+
+      const overlay = el ? el.closest('.node-overlay') : null;
+
+      if (activeOverlay && activeOverlay !== overlay) {
+        activeOverlay.classList.remove('drop-active');
+        activeOverlay = null;
+      }
+      if (overlay && !activeOverlay) {
+        overlay.classList.add('drop-active');
+        activeOverlay = overlay;
+      }
+    }
+
+    function onUp(ev) {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+
+      ghost.style.display = 'none';
+      card.classList.remove('dragging');
+      document.querySelectorAll('.node-empty-hint').forEach(el => el.style.display = 'none');
+
+      if (activeOverlay) {
+        activeOverlay.classList.remove('drop-active');
+        const nodeId = activeOverlay.dataset.nodeId;
+        const wasReplaced = !!placements[nodeId];
+        placements[nodeId] = device;
+        activeOverlay = null;
+        renderNodes();
+        updateSummary();
+
+        const node = NODES.find(n => n.id === nodeId);
+        showToast(wasReplaced
+          ? `「${device.name}」已替换到「${node.label}」`
+          : `「${device.name}」已指派到「${node.label}」`);
+      }
+
+      dragDevice = null;
+    }
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+}
+
+function updateSummary() {
+  const count = Object.keys(placements).length;
+  document.getElementById('assignedCount').textContent = count;
+  document.getElementById('saveBtn').disabled = count === 0;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ===== 初始化 =====
+renderDevices();
+renderNodes();
+drawArrows();
+</script>
+</body>
+</html>

@@ -4,7 +4,7 @@ import { runSeed } from '../seed'
 
 type CheckResult = { passed: boolean; comment: string }
 type CheckRun = { created_at: string; results: CheckResult[] }
-type HistoryEntry = { id: number; mermaid_code: string; created_at: string; check_runs: CheckRun[] }
+type HistoryEntry = { id: number; mermaid_code: string; created_at: string; user_prompt: string | null; check_runs: CheckRun[] }
 type GroupFull = { id: number; name: string; areas: Record<string, HistoryEntry[]>; device_submissions_count: number }
 
 export const adminRouter = new Elysia()
@@ -34,8 +34,8 @@ export const adminRouter = new Elysia()
 
     for (const g of groups) {
       const histories = db.query(
-        'SELECT id, mermaid_code, area, created_at FROM flowchart_history WHERE group_id = ? ORDER BY created_at ASC'
-      ).all(g.id) as { id: number; mermaid_code: string; area: string | null; created_at: string }[]
+        'SELECT id, mermaid_code, area, user_prompt, created_at FROM flowchart_history WHERE group_id = ? ORDER BY created_at ASC'
+      ).all(g.id) as { id: number; mermaid_code: string; area: string | null; user_prompt: string | null; created_at: string }[]
 
       const checkRows = db.query(
         'SELECT flowchart_history_id, results_json, created_at FROM check_results WHERE group_id = ? ORDER BY created_at ASC'
@@ -57,6 +57,7 @@ export const adminRouter = new Elysia()
           id: h.id,
           mermaid_code: h.mermaid_code,
           created_at: h.created_at,
+          user_prompt: h.user_prompt,
           check_runs: checkMap.get(h.id) ?? [],
         })
       }
@@ -71,22 +72,58 @@ export const adminRouter = new Elysia()
     return result
   })
   .get('/api/admin/device-placements', () => {
+    const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
     const groups = db.query('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[]
     type Placement = { sticker_id: number; node_id: string; node_label: string; sticker_name: string; sticker_filename: string }
+    type AreaData = { mermaid_code: string | null; placements: Placement[]; submission_created_at: string | null }
+
     const result = []
     for (const g of groups) {
-      const latest = db.query(
-        'SELECT id, placements_json, created_at FROM device_submissions WHERE group_id = ? ORDER BY created_at DESC LIMIT 1'
-      ).get(g.id) as { id: number; placements_json: string; created_at: string } | null
-      if (!latest) continue
-      const placements = JSON.parse(latest.placements_json) as Placement[]
-      const byFunction: Record<string, Placement[]> = {}
-      for (const p of placements) {
-        if (!byFunction[p.sticker_name]) byFunction[p.sticker_name] = []
-        byFunction[p.sticker_name].push(p)
+      // 每个区域最新的流程图（fallback 用）
+      const latestFlowchart: Record<string, string> = {}
+      for (const area of AREAS) {
+        const fh = db.query(
+          'SELECT mermaid_code FROM flowchart_history WHERE group_id = ? AND area = ? ORDER BY created_at DESC LIMIT 1'
+        ).get(g.id, area) as { mermaid_code: string } | null
+        if (fh) latestFlowchart[area] = fh.mermaid_code
       }
-      const flowchart = db.query('SELECT mermaid_code FROM flowcharts WHERE group_id = ?').get(g.id) as { mermaid_code: string } | null
-      result.push({ group_id: g.id, group_name: g.name, submission_id: latest.id, created_at: latest.created_at, by_function: byFunction, mermaid_code: flowchart?.mermaid_code ?? null })
+
+      // 建立 mermaid_code → area 映射
+      const allHistory = db.query(
+        'SELECT mermaid_code, area FROM flowchart_history WHERE group_id = ? AND area IS NOT NULL'
+      ).all(g.id) as { mermaid_code: string; area: string }[]
+      const codeToArea = new Map<string, string>()
+      for (const fh of allHistory) codeToArea.set(fh.mermaid_code, fh.area)
+
+      // 所有提交，从新到旧，每个区域只取最新一次
+      const submissions = db.query(
+        'SELECT placements_json, created_at, mermaid_code FROM device_submissions WHERE group_id = ? ORDER BY created_at DESC'
+      ).all(g.id) as { placements_json: string; created_at: string; mermaid_code: string | null }[]
+
+      const areaResult: Record<string, AreaData> = {}
+      for (const sub of submissions) {
+        if (!sub.mermaid_code) continue
+        const area = codeToArea.get(sub.mermaid_code)
+        if (!area || areaResult[area]) continue
+        areaResult[area] = {
+          mermaid_code: sub.mermaid_code,
+          placements: JSON.parse(sub.placements_json) as Placement[],
+          submission_created_at: sub.created_at,
+        }
+      }
+
+      // 没有提交的区域：用最新流程图填充，放置列表为空
+      for (const area of AREAS) {
+        if (!areaResult[area]) {
+          areaResult[area] = {
+            mermaid_code: latestFlowchart[area] ?? null,
+            placements: [],
+            submission_created_at: null,
+          }
+        }
+      }
+
+      result.push({ group_id: g.id, group_name: g.name, areas: areaResult })
     }
     return result
   })
