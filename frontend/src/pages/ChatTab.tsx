@@ -147,6 +147,8 @@ export default function ChatTab({
   const [selectedArea, setSelectedArea] = useState<Area | null>(() => isArea(initialArea) ? initialArea : null)
   const [checking, setChecking] = useState(false)
   const [checkResults, setCheckResults] = useState<CheckResult[] | null>(null)
+  const [checkCount, setCheckCount] = useState(0)
+  const [referenceFlowchart, setReferenceFlowchart] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [mermaidCode, setMermaidCode] = useState<string | null>(null)
@@ -241,8 +243,14 @@ export default function ChatTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mermaidCode, area: selectedArea, criteria: crit })
       })
-      const data = await res.json() as { results: CheckResult[] }
+      const data = await res.json() as {
+        results: CheckResult[]
+        check_count: number
+        reference_flowchart: string | null
+      }
       setCheckResults(data.results)
+      setCheckCount(data.check_count)
+      setReferenceFlowchart(data.reference_flowchart ?? null)
     } finally {
       setChecking(false)
     }
@@ -320,10 +328,15 @@ export default function ChatTab({
                 onClick={() => {
                   if (area === selectedArea) {
                     setSelectedArea(null)
+                    setCheckResults(null)
+                    setCheckCount(0)
+                    setReferenceFlowchart(null)
                     onWorkspaceContextChange?.({ area: null, flowchartId: null })
                   } else {
                     setSelectedArea(area)
                     setCheckResults(null)
+                    setCheckCount(0)
+                    setReferenceFlowchart(null)
                     setInput(getAreaStarter(area))
                     onWorkspaceContextChange?.({ area, flowchartId: null })
                   }
@@ -481,6 +494,22 @@ export default function ChatTab({
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {referenceFlowchart && (
+            <div style={{ border: '1px solid #bee3f8', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{
+                padding: '10px 16px',
+                background: '#ebf8ff',
+                borderBottom: '1px solid #bee3f8',
+                fontWeight: 600, fontSize: 13, color: '#2b6cb0',
+              }}>
+                参考流程图（已检查 {checkCount} 次，供参考）
+              </div>
+              <div style={{ padding: 16 }}>
+                <MermaidRenderer code={referenceFlowchart} />
+              </div>
             </div>
           )}
 
