@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia'
 import { db } from '../db'
 import { clearAll, runSeed } from '../seed'
+import { runMockData } from '../mockData'
 
 type CheckResult = { passed: boolean; comment: string }
 type CheckRun = { created_at: string; results: CheckResult[] }
@@ -320,5 +321,9 @@ export const adminRouter = new Elysia()
   })
   .post('/api/admin/reset', () => {
     runSeed()
+    return { ok: true }
+  })
+  .post('/api/admin/mock', () => {
+    runMockData()
     return { ok: true }
   })
