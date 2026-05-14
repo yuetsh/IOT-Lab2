@@ -6,8 +6,29 @@ import { join } from 'path'
 import { seedDevices } from './seedDevices'
 
 describe('seed devices', () => {
-  test('includes the full seeded sticker device list with installation metadata', () => {
-    expect(seedDevices).toHaveLength(27)
+  test('includes the reduced key sticker device list with installation metadata', () => {
+    expect(seedDevices.map(device => device.name)).toEqual([
+      '人体红外传感器',
+      '超高频中距离一体机',
+      '超高频标签',
+      '红外对射传感器',
+      '报警灯',
+      '温湿度传感器',
+      '空气质量传感器',
+      '二氧化碳传感器',
+      '烟雾传感器',
+      '火焰传感器',
+      'LED显示器',
+      '串口服务器',
+      '土壤水分传感器',
+      '液位传感器',
+      '水温传感器',
+      '雾化器',
+      '加热棒',
+      '超高频中距离一体机',
+      '超高频标签',
+      '小票打印机',
+    ])
     expect(seedDevices[0]).toEqual({
       name: '人体红外传感器',
       description: '安装在大门两侧，检测人员靠近与离开',
@@ -15,10 +36,10 @@ describe('seed devices', () => {
       theme_color: '#3182ce',
     })
     expect(seedDevices[seedDevices.length - 1]).toEqual({
-      name: 'ADAM-4017模拟量采集器',
-      description: '安装在设备间操作箱内，采集温湿度、CO₂、空气质量等模拟传感器信号',
-      install_location: '设备间',
-      theme_color: '#4a5568',
+      name: '小票打印机',
+      description: '放置在自助借还台，借还成功后自动打印小票凭证',
+      install_location: '自助系统',
+      theme_color: '#d53f8c',
     })
     expect(new Set(seedDevices.map(device => device.theme_color)).size).toBeGreaterThan(5)
   })

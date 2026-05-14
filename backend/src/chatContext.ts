@@ -38,14 +38,11 @@ export function buildDeepSeekMessages({
   if (referenceFlowchart) {
     contextMessages.push({
       role: 'system',
-      content: `以下是「${area}」功能区域的参考流程图，作为你生成流程图的结构基准：
+      content: `以下是「${area}」功能区域的完整参考流程图，作为最终目标结构参考：
 \`\`\`mermaid
 ${referenceFlowchart}
 \`\`\`
-要求：
-1. 参考图中所有涉及设备功能的关键节点（传感器检测、执行器控制、报警输出等）必须保留，不得删除或改变其语义
-2. 可以在不违反上述约束的前提下，调整节点描述文字、增加辅助节点、改变流程表达方式
-3. 流程结构与参考图保持相似，但不得完全照抄`,
+注意：每次只根据用户本次要求新增对应步骤，向这个目标结构逐步靠近，不要一次性补全所有节点。`,
     })
   }
 

@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  countAssignedDeviceTargets,
+  getDeviceTargetNodes,
+  getPlacementsForFlowNodes,
   normalizeMermaidNodeId,
   shouldClearPlacementsOnFlowchartChange,
   upsertNodePlacement,
@@ -96,5 +99,53 @@ describe('journal placement state', () => {
       node_id: 'MS',
       sticker_id: 2,
     })
+  })
+
+  test('treats every rendered flowchart node as a device target', () => {
+    const nodes = [
+      { id: 'A', label: '人体红外传感器持续检测' },
+      { id: 'B', label: '是否有人靠近?' },
+      { id: 'C', label: '自动开启大门' },
+      { id: 'D', label: '持续监测人员是否离开' },
+      { id: 'E', label: '人员是否离开?' },
+      { id: 'F', label: '自动关闭大门' },
+    ]
+
+    expect(getDeviceTargetNodes('大门区域', nodes).map(n => n.id)).toEqual(['A', 'B', 'C', 'D', 'E', 'F'])
+  })
+
+  test('counts assigned devices on any rendered flowchart node', () => {
+    const nodes = [
+      { id: 'A', label: '读者RFID刷卡' },
+      { id: 'B', label: '身份识别是否通过?' },
+      { id: 'C', label: '自动开启闸机' },
+      { id: 'G', label: '触发声光报警装置' },
+    ]
+    const placements = [
+      { node_id: 'A' },
+      { node_id: 'flowchart-B-2' },
+      { node_id: 'C' },
+      { node_id: 'G' },
+    ]
+
+    expect(countAssignedDeviceTargets('身份识别', nodes, placements)).toBe(4)
+  })
+
+  test('keeps submissions limited to nodes in the current flowchart', () => {
+    const nodes = [
+      { id: 'A', label: '人体红外传感器持续检测' },
+      { id: 'B', label: '检测到有人靠近?' },
+    ]
+    const placements = [
+      { node_id: 'A' },
+      { node_id: 'flowchart-B-2' },
+      { node_id: 'O' },
+      { node_id: null },
+    ]
+
+    expect(getPlacementsForFlowNodes(nodes, placements)).toEqual([
+      { node_id: 'A' },
+      { node_id: 'flowchart-B-2' },
+    ])
   })
 })

@@ -76,7 +76,9 @@ export default function GroupWorkspace() {
         if (code === null) {
           setPlacements([])
         } else {
-          fetch(`/api/groups/${id}/journal`).then(r => r.json()).then(setPlacements)
+          const journalParams = new URLSearchParams()
+          if (routeContext.area) journalParams.set('area', routeContext.area)
+          fetch(`/api/groups/${id}/journal${journalParams.toString() ? `?${journalParams}` : ''}`).then(r => r.json()).then(setPlacements)
         }
       })
     fetch('/api/stickers').then(r => r.json()).then(setStickers)
@@ -101,6 +103,7 @@ export default function GroupWorkspace() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        area: routeArea ?? '',
         placements: next
           .filter(p => p.node_id && p.node_label)
           .map(p => ({
@@ -110,7 +113,7 @@ export default function GroupWorkspace() {
           }))
       })
     })
-  }, [id])
+  }, [id, routeArea])
 
   const submitDeviceTable = useCallback(async (next: Omit<Placement, 'id'>[]) => {
     if (!id) return
@@ -118,6 +121,7 @@ export default function GroupWorkspace() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        area: routeArea,
         placements: next
           .filter(p => p.node_id && p.node_label)
           .map(p => ({
@@ -133,7 +137,7 @@ export default function GroupWorkspace() {
     const data = await res.json() as { ok: boolean; submission_id: number }
     setLatestSubmissionId(data.submission_id)
     setAiCheckResults(null)
-  }, [id])
+  }, [id, routeArea])
 
   const handleAiCheck = useCallback(async () => {
     if (!id || latestSubmissionId == null) return

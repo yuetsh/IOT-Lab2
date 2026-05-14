@@ -99,13 +99,13 @@ export const adminRouter = new Elysia()
 
       // 所有提交，从新到旧，每个区域只取最新一次
       const submissions = db.query(
-        'SELECT id, placements_json, created_at, mermaid_code FROM device_submissions WHERE group_id = ? ORDER BY created_at DESC'
-      ).all(g.id) as { id: number; placements_json: string; created_at: string; mermaid_code: string | null }[]
+        'SELECT id, area, placements_json, created_at, mermaid_code FROM device_submissions WHERE group_id = ? ORDER BY created_at DESC'
+      ).all(g.id) as { id: number; area: string | null; placements_json: string; created_at: string; mermaid_code: string | null }[]
 
       const areaResult: Record<string, AreaData> = {}
       for (const sub of submissions) {
         if (!sub.mermaid_code) continue
-        const area = codeToArea.get(sub.mermaid_code)
+        const area = sub.area ?? codeToArea.get(sub.mermaid_code)
         if (!area || areaResult[area]) continue
 
         const checkRow = db.query(
@@ -152,10 +152,12 @@ export const adminRouter = new Elysia()
     db.query('DELETE FROM flowchart_history').run()
     db.query('DELETE FROM flowcharts').run()
     db.query('DELETE FROM journal_placements').run()
+    db.query('DELETE FROM device_check_results').run()
     db.query('DELETE FROM device_submissions').run()
     db.query('DELETE FROM messages').run()
     db.query('DELETE FROM groups').run()
-    db.query("DELETE FROM sqlite_sequence WHERE name IN ('groups','messages','flowcharts','flowchart_history','check_results','device_submissions','device_check_results')").run()
+    db.query('DELETE FROM stickers').run()
+    db.query("DELETE FROM sqlite_sequence WHERE name IN ('groups','messages','flowcharts','flowchart_history','check_results','journal_placements','device_submissions','device_check_results','stickers')").run()
     return { ok: true }
   })
   .post('/api/admin/reset', () => {

@@ -7,14 +7,13 @@ export type SeedDevice = {
 
 export const seedDevices: SeedDevice[] = [
   // 大门区域
-  { name: '人体红外传感器', description: '安装在大门两侧，检测人员靠近与离开', install_location: '大门区域', theme_color: '#3182ce' },
+  { name: '人体红外传感器', description: '安装在大门两侧，持续检测人员靠近与离开，联动控制大门启闭', install_location: '大门区域', theme_color: '#3182ce' },
 
   // 身份识别
-  { name: '超高频中距离一体机', description: '安装在门闸检测口，读取读者超高频标签完成身份识别', install_location: '身份识别', theme_color: '#5a67d8' },
-  { name: '超高频标签', description: '读者随身携带，存储身份信息；图书上的标签存储图书信息', install_location: '身份识别', theme_color: '#5a67d8' },
+  { name: '超高频中距离一体机', description: '安装在门闸检测口，读取读者超高频标签完成身份识别，统计进出人流量', install_location: '身份识别', theme_color: '#5a67d8' },
+  { name: '超高频标签', description: '读者随身携带，存储身份信息供门禁识别', install_location: '身份识别', theme_color: '#5a67d8' },
+  { name: '闸机', description: '安装在门闸通道，身份识别通过后自动开启，人员通过后自动关闭', install_location: '身份识别', theme_color: '#6b7280' },
   { name: '红外对射传感器', description: '安装在门闸两侧，检测通道是否被遮挡以判断非法闯入', install_location: '身份识别', theme_color: '#3182ce' },
-  { name: '继电器', description: '安装在门闸控制箱内，控制闸机通断', install_location: '身份识别', theme_color: '#dd6b20' },
-  { name: 'LED灯', description: '安装在门闸上方，绿色表示通行，红色表示报警', install_location: '身份识别', theme_color: '#d69e2e' },
   { name: '报警灯', description: '安装在门闸上方，非法闯入时声光报警', install_location: '身份识别', theme_color: '#e53e3e' },
 
   // 大厅安防
@@ -32,18 +31,11 @@ export const seedDevices: SeedDevice[] = [
   { name: '土壤水分传感器', description: '插入绿植土壤，实时监测含水量', install_location: '绿色植物', theme_color: '#38a169' },
   { name: '液位传感器', description: '安装在水箱内壁，监测水箱液位', install_location: '绿色植物', theme_color: '#0ea5e9' },
   { name: '水温传感器', description: '安装在水箱内，监测水温防止过冷', install_location: '绿色植物', theme_color: '#0ea5e9' },
-  { name: '雾化器', description: '安装在绿植旁，由智能插座控制通断实现加湿浇水', install_location: '绿色植物', theme_color: '#38a169' },
+  { name: '雾化器', description: '安装在绿植旁，土壤水分不足时进行加湿浇水', install_location: '绿色植物', theme_color: '#38a169' },
   { name: '加热棒', description: '安装在水箱内，水温偏低时自动加热', install_location: '绿色植物', theme_color: '#dd6b20' },
-  { name: '水箱', description: '绿植区供水容器，配合液位传感器使用', install_location: '绿色植物', theme_color: '#0ea5e9' },
-  { name: '智能插座', description: '绿植区执行器电源控制，由ADAM-4150输出信号控制通断', install_location: '绿色植物', theme_color: '#dd6b20' },
-  { name: 'ZigBee协调器', description: '绿植区ZigBee网关，汇聚并转发传感器数据', install_location: '绿色植物', theme_color: '#38a169' },
-  { name: 'ZigBee四输入量采集器', description: '绿植区采集土壤水分、液位、水温等传感器信号', install_location: '绿色植物', theme_color: '#38a169' },
 
   // 自助系统
-  { name: '电子扫描枪', description: '放置在自助借还台，辅助扫描图书条码', install_location: '自助系统', theme_color: '#d53f8c' },
+  { name: '超高频中距离一体机', description: '安装在自助借还台，读取图书标签完成借还、查询与续借', install_location: '自助系统', theme_color: '#5a67d8' },
+  { name: '超高频标签', description: '粘贴在图书上，存储图书信息供自助借还识别', install_location: '自助系统', theme_color: '#5a67d8' },
   { name: '小票打印机', description: '放置在自助借还台，借还成功后自动打印小票凭证', install_location: '自助系统', theme_color: '#d53f8c' },
-
-  // 基础设施（多区域共用）
-  { name: 'ADAM-4150数字量采集器', description: '安装在设备间操作箱内，采集数字传感器信号并输出控制信号，覆盖大门、身份识别、大厅安防、绿植区', install_location: '设备间', theme_color: '#4a5568' },
-  { name: 'ADAM-4017模拟量采集器', description: '安装在设备间操作箱内，采集温湿度、CO₂、空气质量等模拟传感器信号', install_location: '设备间', theme_color: '#4a5568' },
 ]

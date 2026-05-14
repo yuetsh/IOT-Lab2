@@ -27,15 +27,11 @@ export function buildFixPrompt({ area, criteria, results }: BuildFixPromptInput)
     return `当前「${promptArea}」流程图已通过全部检查，请优化节点描述和步骤表达，使流程更清晰工程化。`
   }
 
-  const failedLines = failedItems.map((item, index) => {
-    const comment = item.result?.comment?.trim()
-    return comment
-      ? `${index + 1}. ${item.criterion}（检查意见：${comment}）`
-      : `${index + 1}. ${item.criterion}`
+  const count = failedItems.length === 1 ? 1 : Math.random() < 0.5 ? 1 : 2
+  const selected = failedItems.slice(0, count)
+  const lines = selected.map((item, i) => {
+    return `${i + 1}. ${item.criterion}`
   })
 
-  return [
-    `请基于当前「${promptArea}」流程图进行修改，补充以下未通过的功能点：`,
-    ...failedLines,
-  ].join('\n')
+  return `请在当前「${promptArea}」流程图的基础上修改，可以保留现有节点，仅新增以下功能步骤：\n${lines.join('\n')}`
 }

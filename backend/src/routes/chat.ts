@@ -1,17 +1,17 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
 import { buildDeepSeekMessages } from '../chatContext'
+import { AREA_REFERENCE_FLOWCHARTS } from '../areaFlowcharts'
 import { shouldClearJournalPlacementsForFlowchartChange } from '../flowchartState'
 import { insertFlowchartHistory } from '../flowchartHistory'
-import { AREA_REFERENCE_FLOWCHARTS } from '../areaFlowcharts'
 
 const SYSTEM_PROMPT = `你是物联网系统功能设计师，专注于智慧图书馆系统设计。用中文回复。
 
 接到用户指定的功能区域后，你需要：
-1. 严格只根据用户在消息中明确列出的功能点生成方案，不得自行推断或补充用户未提及的功能
-2. 以功能步骤和判断逻辑为核心，描述系统如何响应各种情况
-3. 语言简洁、工程化，可直接用于施工方案编写
-4. 在回复末尾生成对应的 Mermaid 流程图，只体现用户明确要求的功能，不添加额外节点
+1. 首次生成时，严格只生成用户明确列出的功能步骤，不推断补全，宁可图简单
+2. 修改现有流程图时，保留原有所有节点，只在此基础上新增用户要求的功能步骤
+3. 语言简洁、工程化
+4. 在回复末尾生成对应的 Mermaid 流程图
 
 流程图格式要求：
 - 使用 graph TD 方向
@@ -20,8 +20,8 @@ const SYSTEM_PROMPT = `你是物联网系统功能设计师，专注于智慧图
   - decision：判断/条件节点（配合菱形 {}），黄色 fill:#fbbf24,stroke:#d97706,color:#fff
   - action：执行/控制动作，绿色 fill:#34d399,stroke:#059669,color:#fff
   - display：展示/联动效果，紫色 fill:#a78bfa,stroke:#7c3aed,color:#fff
-- 矩形节点 [] 配合 :::trigger / :::action / :::display 使用
-- 菱形节点 {} 配合 :::decision 使用
+- 矩形节点 [] 配合 :::trigger / :::action / :::display 使用，:::前不能有空格
+- 菱形节点 {} 配合 :::decision 使用，:::前不能有空格
 - 连线上标注判断分支结果（如 -->|有人| 或 -->|无人|）
 - 节点文字使用功能性描述，不直接写设备型号名称
 - 不使用 subgraph
@@ -103,7 +103,7 @@ export const chatRouter = new Elysia()
     // 提取并保存 Mermaid 代码
     const match = MERMAID_REGEX.exec(assistantContent)
     if (match) {
-      const mermaidCode = match[1].trim()
+      const mermaidCode = match[1].trim().replace(/ +(:::)/g, '$1')
       if (shouldClearJournalPlacementsForFlowchartChange(currentSavedFlowchart?.mermaid_code ?? null, mermaidCode)) {
         db.query('DELETE FROM journal_placements WHERE group_id = ?').run(groupId)
       }
@@ -181,20 +181,7 @@ ${criteria.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}
       'INSERT INTO check_results (group_id, flowchart_history_id, area, results_json) VALUES (?, ?, ?, ?)'
     ).run(groupId, latestHistory?.id ?? null, area, JSON.stringify(results))
 
-    const countRow = db.query(
-      'SELECT COUNT(*) as count FROM check_results WHERE group_id = ? AND area = ?'
-    ).get(groupId, area) as { count: number }
-    const checkCount = countRow.count
-
-    // 用 groupId + area 哈希确定该组该区域的阈值（3/4/5），同组同区域每次一致
-    const hash = `${groupId}|${area}`.split('').reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 2654435761) >>> 0, 0)
-    const threshold = 3 + (hash % 3)
-
-    const referenceFlowchart = checkCount >= threshold
-      ? (AREA_REFERENCE_FLOWCHARTS[area] ?? null)
-      : null
-
-    return { results, check_count: checkCount, reference_flowchart: referenceFlowchart }
+    return { results }
   }, {
     body: t.Object({
       mermaidCode: t.String({ minLength: 1 }),

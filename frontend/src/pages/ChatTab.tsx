@@ -35,44 +35,6 @@ function isArea(value: string | null | undefined): value is Area {
   return AREAS.includes(value as Area)
 }
 
-const AREA_FEATURES: Record<Area, string[]> = {
-  '大门区域': [
-    '利用人体红外传感器检测人员进出',
-    '检测到人员靠近时自动开启大门',
-    '人员离开后自动关闭大门',
-  ],
-  '身份识别': [
-    '支持RFID刷卡完成读者身份识别',
-    '识别通过后自动开启门禁闸机',
-    '实时统计进出人流量数据',
-    '非法闯入时触发声光报警装置',
-  ],
-  '大厅安防': [
-    '实时监测大厅温湿度数据',
-    '实时监测CO₂浓度和空气质量',
-    '部署烟雾与火焰传感器实现火灾预警',
-    '环境数据超标时自动发出预警提示',
-    '超标时自动调控空调制冷或除湿',
-  ],
-  'LED显示': [
-    '实时显示当前日期与时间',
-    '实时推送温湿度和空气质量等环境数据',
-    '滚动播放图书馆通知和新书推荐信息',
-    '同步显示安防与门禁状态提示',
-  ],
-  '绿色植物': [
-    '实时监测绿植土壤水分含量',
-    '水分不足时自动启动雾化加湿或浇水装置',
-    '浇水完成后自动停止设备运行',
-    '实时监测水箱液位，液位不足时暂停浇水',
-    '实时监测水温，水温偏低时自动启动加热',
-  ],
-  '自助系统': [
-    '支持读者自助完成图书借还操作',
-    '支持图书信息查询和续借功能',
-    '借还成功后自动打印小票凭证',
-  ],
-}
 
 const AREA_BASE: Record<Area, string> = {
   '大门区域': '设计图书馆大门自动开关控制系统',
@@ -84,48 +46,55 @@ const AREA_BASE: Record<Area, string> = {
 }
 
 function getAreaStarter(area: Area): string {
-  const features = AREA_FEATURES[area]
-  const numToDrop = features.length <= 3 ? 1 : 2
-  const selected = features.slice(0, features.length - numToDrop)
-  return `${AREA_BASE[area]}，${selected.join('，')}`
+  const firstCriterion = AREA_CRITERIA[area]?.[0] ?? ''
+  return `${AREA_BASE[area]}，功能要求：${firstCriterion}`
 }
 
 const AREA_CRITERIA: Partial<Record<Area, string[]>> = {
   '大门区域': [
-    '利用人体红外检测，自动判定有无人员进出图书馆大门',
-    '有人靠近时，自动控制大门开启',
-    '人员离开后，自动控制大门关闭',
+    '人体红外传感器持续检测是否有人靠近',
+    '检测到有人靠近时，自动开启大门',
+    '大门开启后持续监测人员是否离开',
+    '人员离开后，自动关闭大门',
   ],
   '身份识别': [
-    '支持RFID刷卡完成读者身份识别',
-    '识别通过后，自动开启门禁/闸机',
-    '实时统计进出人流量数据',
-    '非法闯入时，触发报警灯/声光报警',
+    '读者通过RFID刷卡完成身份识别',
+    '身份识别通过后，自动开启闸机',
+    '闸机通行后自动关闭',
+    '实时更新进出人流量统计',
+    '检测是否有非法闯入',
+    '检测到非法闯入时，触发声光报警装置',
   ],
-  '自助系统': [
-    '支持图书自助借还操作',
-    '支持图书信息查询/续借功能',
-    '借还成功后，自动打印小票凭证',
+  '大厅安防': [
+    '实时监测大厅温湿度',
+    '实时监测二氧化碳浓度',
+    '实时监测空气质量',
+    '实时监测烟雾，检测到时触发火灾预警',
+    '实时监测火灾，检测到时触发火灾预警',
+    '环境数据超标时，自动发出预警提示',
+    '温度过高时，自动开启空调制冷',
+    '湿度过高时，自动开启除湿',
+  ],
+  'LED显示': [
+    '实时显示当前日期与时间',
+    '实时推送温湿度环境数据',
+    '实时推送空气质量数据',
+    '滚动播放图书馆通知与新书推荐信息',
+    '同步显示安防与门禁状态提示',
   ],
   '绿色植物': [
     '实时监测绿植土壤水分含量',
-    '土壤水分不足时，自动启动雾化加湿/浇水',
-    '浇水/加湿完成后，自动停止设备运行',
-    '实时监测水箱液位，液位不足时暂停浇水',
-    '实时监测水温，水温偏低时自动启动加热棒',
+    '土壤水分不足时，检查水箱液位',
+    '液位不足时，暂停浇水并发出液位告警',
+    '液位充足时，检测水温；水温偏低则启动加热棒',
+    '启动雾化加湿装置进行加湿浇水',
+    '水分达标后，自动停止雾化加湿装置',
   ],
-  'LED显示': [
-    '实时显示当前日期/时间',
-    '实时推送温湿度、空气质量等环境数据',
-    '滚动显示图书馆通知/新书推荐信息',
-    '同步显示安防/门禁状态提示',
-  ],
-  '大厅安防': [
-    '实时监测大厅温湿度数据',
-    '实时监测大厅空气质量/CO₂浓度',
-    '实时监测烟雾/火焰，实现火灾预警',
-    '环境数据超标时，自动发出预警提示',
-    '环境数据超标时自动控制空调（温度过高开制冷、湿度过高开除湿），维持大厅舒适环境',
+  '自助系统': [
+    '支持读者自助借书（读取图书标签、完成借书登记）',
+    '支持读者自助还书（读取图书标签、完成还书登记）',
+    '支持图书信息查询与续借功能',
+    '借还成功后，自动打印小票凭证',
   ],
 }
 
@@ -149,8 +118,6 @@ export default function ChatTab({
   const [selectedArea, setSelectedArea] = useState<Area | null>(() => isArea(initialArea) ? initialArea : null)
   const [checking, setChecking] = useState(false)
   const [checkResults, setCheckResults] = useState<CheckResult[] | null>(null)
-  const [checkCount, setCheckCount] = useState(0)
-  const [referenceFlowchart, setReferenceFlowchart] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [mermaidCode, setMermaidCode] = useState<string | null>(null)
@@ -245,14 +212,8 @@ export default function ChatTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mermaidCode, area: selectedArea, criteria: crit })
       })
-      const data = await res.json() as {
-        results: CheckResult[]
-        check_count: number
-        reference_flowchart: string | null
-      }
+      const data = await res.json() as { results: CheckResult[] }
       setCheckResults(data.results)
-      setCheckCount(data.check_count)
-      setReferenceFlowchart(data.reference_flowchart)
     } finally {
       setChecking(false)
     }
@@ -331,14 +292,10 @@ export default function ChatTab({
                   if (area === selectedArea) {
                     setSelectedArea(null)
                     setCheckResults(null)
-                    setCheckCount(0)
-                    setReferenceFlowchart(null)
                     onWorkspaceContextChange?.({ area: null, flowchartId: null })
                   } else {
                     setSelectedArea(area)
                     setCheckResults(null)
-                    setCheckCount(0)
-                    setReferenceFlowchart(null)
                     setInput(getAreaStarter(area))
                     onWorkspaceContextChange?.({ area, flowchartId: null })
                   }
@@ -499,21 +456,7 @@ export default function ChatTab({
             </div>
           )}
 
-          {referenceFlowchart && (
-            <div style={{ border: '1px solid #bee3f8', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
-              <div style={{
-                padding: '10px 16px',
-                background: '#ebf8ff',
-                borderBottom: '1px solid #bee3f8',
-                fontWeight: 600, fontSize: 13, color: '#2b6cb0',
-              }}>
-                参考流程图（已检查 {checkCount} 次，供参考）
-              </div>
-              <div style={{ padding: 16 }}>
-                <MermaidRenderer code={referenceFlowchart} />
-              </div>
-            </div>
-          )}
+
 
           {mermaidCode ? (
             <MermaidRenderer code={mermaidCode} />

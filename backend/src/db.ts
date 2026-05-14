@@ -80,6 +80,7 @@ db.query(`
   CREATE TABLE IF NOT EXISTS journal_placements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    area TEXT,
     sticker_id INTEGER NOT NULL REFERENCES stickers(id) ON DELETE CASCADE,
     node_id TEXT,
     node_label TEXT,
@@ -89,6 +90,7 @@ db.query(`
   )
 `).run()
 
+try { db.query('ALTER TABLE journal_placements ADD COLUMN area TEXT').run() } catch {}
 try { db.query('ALTER TABLE journal_placements ADD COLUMN node_id TEXT').run() } catch {}
 try { db.query('ALTER TABLE journal_placements ADD COLUMN node_label TEXT').run() } catch {}
 
@@ -96,12 +98,14 @@ db.query(`
   CREATE TABLE IF NOT EXISTS device_submissions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    area TEXT,
     placements_json TEXT NOT NULL,
     mermaid_code TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   )
 `).run()
 
+try { db.query('ALTER TABLE device_submissions ADD COLUMN area TEXT').run() } catch {}
 try { db.query('ALTER TABLE device_submissions ADD COLUMN mermaid_code TEXT').run() } catch {}
 
 db.query(`

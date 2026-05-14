@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MermaidRenderer from '../components/MermaidRenderer'
-import { normalizeMermaidNodeId, upsertNodePlacement } from './journalState'
+import { countAssignedDeviceTargets, getDeviceTargetNodes, getPlacementsForFlowNodes, normalizeMermaidNodeId, upsertNodePlacement } from './journalState'
 import { stickerImageSrc } from './admin/stickerManagement'
 
 interface Sticker { id: number; name: string; description: string; install_location: string; theme_color: string; filename: string }
@@ -67,8 +67,8 @@ function DeviceCard({ sticker, isDragging, onPointerDown }: {
       <img src={stickerImageSrc(sticker)} alt={sticker.name} style={{ width: 56, height: 56, objectFit: 'contain', pointerEvents: 'none' }} />
       <span style={{ width: 16, height: 4, borderRadius: 4, background: sticker.theme_color }} />
       <span style={{ fontSize: 15, fontWeight: 700, color: '#2d3748', textAlign: 'center' }}>{sticker.name}</span>
-      {sticker.install_location && (
-        <span style={{ fontSize: 11, color: '#2b6cb0', textAlign: 'center' }}>{sticker.install_location}</span>
+      {sticker.description && (
+        <span style={{ fontSize: 11, color: '#718096', textAlign: 'center' }}>{sticker.description}</span>
       )}
     </div>
   )
@@ -148,6 +148,11 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
   const [submitState, setSubmitState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [checkState, setCheckState] = useState<'idle' | 'checking'>('idle')
   const [modalOpen, setModalOpen] = useState(false)
+  const deviceTargetNodes = useMemo(() => getDeviceTargetNodes(area, flowNodes), [area, flowNodes])
+  const deviceTargetNodeIds = useMemo(
+    () => new Set(deviceTargetNodes.map(node => normalizeMermaidNodeId(node.id))),
+    [deviceTargetNodes]
+  )
 
   const canvasRef = useRef<HTMLDivElement>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
@@ -209,7 +214,7 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
   function removePlacement(nodeId: string) {
     setPlacements(prev => {
       const next = prev.filter(p => !p.node_id || normalizeMermaidNodeId(p.node_id) !== nodeId)
-      onSaveRef.current(next)
+      onSaveRef.current(getPlacementsForFlowNodes(flowNodesRef.current, next))
       return next
     })
   }
@@ -231,7 +236,8 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
       }
       const el = document.elementFromPoint(ev.clientX, ev.clientY)
       if (ghostRef.current) ghostRef.current.style.visibility = ''
-      const nodeId = (el?.closest<HTMLElement>('[data-node-id]') as HTMLElement | null)?.dataset.nodeId ?? null
+      const rawNodeId = (el?.closest<HTMLElement>('[data-node-id]') as HTMLElement | null)?.dataset.nodeId ?? null
+      const nodeId = rawNodeId && deviceTargetNodeIds.has(rawNodeId) ? rawNodeId : null
       if (dragOverNodeIdRef.current !== nodeId) {
         dragOverNodeIdRef.current = nodeId
         setDragOverNodeId(nodeId)
@@ -248,7 +254,7 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
       setDragOverNodeId(null)
       dragStickerRef.current = null
       dragOverNodeIdRef.current = null
-      if (!nodeId || !s) return
+      if (!nodeId || !s || !deviceTargetNodeIds.has(nodeId)) return
       const nodeLabel = flowNodesRef.current.find(n => n.id === nodeId)?.label ?? nodeId
       const currentPlacements = placementsRef.current
       const wasReplaced = currentPlacements.some(p => p.node_id && normalizeMermaidNodeId(p.node_id) === nodeId)
@@ -261,7 +267,7 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
         sticker_filename: s.filename,
       })
       setPlacements(next)
-      onSaveRef.current(next)
+      onSaveRef.current(getPlacementsForFlowNodes(flowNodesRef.current, next))
       showToast(wasReplaced ? `「${s.name}」已替换` : `「${s.name}」已指派到「${nodeLabel}」`)
     }
 
@@ -270,7 +276,8 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
     window.addEventListener('pointercancel', onUp)
   }
 
-  const assignedCount = placements.filter(p => p.node_id).length
+  const flowPlacements = useMemo(() => getPlacementsForFlowNodes(flowNodes, placements), [flowNodes, placements])
+  const assignedCount = countAssignedDeviceTargets(area, flowNodes, flowPlacements)
 
 
   return (
@@ -434,24 +441,24 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
 
         <div style={{ flexShrink: 0, borderTop: '1px solid #e2e8f0', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ margin: 0, fontSize: 11, color: '#718096' }}>
-            已指派 <span style={{ color: '#38a169', fontWeight: 600 }}>{assignedCount}</span> / {flowNodes.length} 个节点
+            已指派 <span style={{ color: '#38a169', fontWeight: 600 }}>{assignedCount}</span> 个节点
           </p>
           {onSubmit && (
             <button
-              disabled={submitState === 'saving' || placements.length === 0}
+              disabled={submitState === 'saving' || flowPlacements.length === 0}
               onClick={async () => {
                 if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
                 setSubmitState('saving')
-                await onSubmit(placements)
+                await onSubmit(flowPlacements)
                 setSubmitState('saved')
                 savedTimerRef.current = setTimeout(() => setSubmitState('idle'), 2500)
               }}
               style={{
                 padding: '10px 0', borderRadius: 8, border: 'none',
-                cursor: placements.length === 0 ? 'default' : 'pointer',
+                cursor: flowPlacements.length === 0 ? 'default' : 'pointer',
                 fontSize: 14, fontWeight: 600,
-                background: submitState === 'saved' ? '#c6f6d5' : placements.length === 0 ? '#edf2f7' : '#4299e1',
-                color: submitState === 'saved' ? '#276749' : placements.length === 0 ? '#a0aec0' : '#fff',
+                background: submitState === 'saved' ? '#c6f6d5' : flowPlacements.length === 0 ? '#edf2f7' : '#4299e1',
+                color: submitState === 'saved' ? '#276749' : flowPlacements.length === 0 ? '#a0aec0' : '#fff',
                 transition: 'background 0.2s, color 0.2s',
               }}
             >
