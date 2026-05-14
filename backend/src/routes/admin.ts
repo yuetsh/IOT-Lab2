@@ -296,20 +296,34 @@ export const adminRouter = new Elysia()
       return { area, avg_rounds: avgRounds, groups_count: rows.length }
     })
 
-    // 3. 区域完成顺序（每组各区域第几个被攻克，null=未开始）
+    // 3. 全局完成排名：所有组所有区域放在一起，按通过检测时间统一排序
     const parseTs = (s: string) => new Date(s.replace(' ', 'T')).getTime()
-    const completionTimeline = groups.map(g => {
-      const areaTs: { area: string; ts: number }[] = []
-      for (const area of AREAS) {
-        const row = db.query(
-          'SELECT created_at FROM flowchart_history WHERE group_id = ? AND area = ? ORDER BY created_at ASC LIMIT 1'
-        ).get(g.id, area) as { created_at: string } | null
-        if (row) areaTs.push({ area, ts: parseTs(row.created_at) })
+
+    const allCompletions: { group_id: number; area: string; ts: number }[] = []
+    for (const area of AREAS) {
+      const rows = db.query(`
+        SELECT cr.group_id, MAX(cr.created_at) as last_passed_at
+        FROM check_results cr
+        WHERE cr.area = ?
+          AND NOT EXISTS (
+            SELECT 1 FROM json_each(cr.results_json) WHERE json_extract(value, '$.passed') = 0
+          )
+        GROUP BY cr.group_id
+      `).all(area) as { group_id: number; last_passed_at: string }[]
+
+      for (const r of rows) {
+        allCompletions.push({ group_id: r.group_id, area, ts: parseTs(r.last_passed_at) })
       }
-      areaTs.sort((a, b) => a.ts - b.ts)
+    }
+
+    allCompletions.sort((a, b) => a.ts - b.ts)
+    const rankMap = new Map(allCompletions.map((c, i) => [`${c.group_id}:${c.area}`, i + 1]))
+
+    const completionTimeline = groups.map(g => {
       const areas: Record<string, number | null> = {}
-      for (const area of AREAS) areas[area] = null
-      areaTs.forEach((entry, i) => { areas[entry.area] = i + 1 })
+      for (const area of AREAS) {
+        areas[area] = rankMap.get(`${g.id}:${area}`) ?? null
+      }
       return { group_id: g.id, group_name: g.name, areas }
     })
 

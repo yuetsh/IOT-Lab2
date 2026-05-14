@@ -206,7 +206,7 @@ export default function AdminOverview() {
   return (
     <>
       <div>
-        <h2 style={{ marginTop: 0 }}>流程图设计总览</h2>
+        <h2 style={{ marginTop: 0 }}>功能设计总览</h2>
         {groups.length === 0 ? (
           <p style={{ color: '#a0aec0' }}>暂无小组数据</p>
         ) : (

@@ -112,7 +112,6 @@ export default function AdminDataView() {
 
   return (
     <div>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a202c', marginBottom: 24 }}>设备分类</h2>
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 16 }}>
           <thead>

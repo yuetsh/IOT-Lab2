@@ -1,0 +1,206 @@
+<h2>各组历次检测通过率趋势 — 重新设计</h2>
+<p class="subtitle">以下三种方案，选择最适合的展示方式</p>
+
+<div class="cards">
+
+  <!-- Option A: 分组卡片式折线图 -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px;border-radius:8px;">
+      <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:10px;">方案 A — 分组卡片（每组单独一张图）</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <!-- Group 1 mini chart -->
+        <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px;flex:1;min-width:100px;">
+          <div style="font-size:10px;font-weight:700;color:#6366f1;margin-bottom:6px;">第一组</div>
+          <svg width="100%" height="50" viewBox="0 0 120 50">
+            <polyline points="10,40 35,28 60,20 85,12 110,8" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="40" r="3" fill="#6366f1"/>
+            <circle cx="35" cy="28" r="3" fill="#6366f1"/>
+            <circle cx="60" cy="20" r="3" fill="#6366f1"/>
+            <circle cx="85" cy="12" r="3" fill="#6366f1"/>
+            <circle cx="110" cy="8" r="3" fill="#6366f1"/>
+            <line x1="0" y1="45" x2="120" y2="45" stroke="#e2e8f0" stroke-width="1"/>
+          </svg>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;">
+            <span>第1次</span><span>第5次</span>
+          </div>
+        </div>
+        <!-- Group 2 mini chart -->
+        <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px;flex:1;min-width:100px;">
+          <div style="font-size:10px;font-weight:700;color:#10b981;margin-bottom:6px;">第二组</div>
+          <svg width="100%" height="50" viewBox="0 0 120 50">
+            <polyline points="10,38 35,32 60,25 85,18 110,14" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="38" r="3" fill="#10b981"/>
+            <circle cx="35" cy="32" r="3" fill="#10b981"/>
+            <circle cx="60" cy="25" r="3" fill="#10b981"/>
+            <circle cx="85" cy="18" r="3" fill="#10b981"/>
+            <circle cx="110" cy="14" r="3" fill="#10b981"/>
+            <line x1="0" y1="45" x2="120" y2="45" stroke="#e2e8f0" stroke-width="1"/>
+          </svg>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;">
+            <span>第1次</span><span>第5次</span>
+          </div>
+        </div>
+        <!-- Group 3 mini chart -->
+        <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px;flex:1;min-width:100px;">
+          <div style="font-size:10px;font-weight:700;color:#f59e0b;margin-bottom:6px;">第三组</div>
+          <svg width="100%" height="50" viewBox="0 0 120 50">
+            <polyline points="10,42 35,38 60,30 85,22 110,10" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="42" r="3" fill="#f59e0b"/>
+            <circle cx="35" cy="38" r="3" fill="#f59e0b"/>
+            <circle cx="60" cy="30" r="3" fill="#f59e0b"/>
+            <circle cx="85" cy="22" r="3" fill="#f59e0b"/>
+            <circle cx="110" cy="10" r="3" fill="#f59e0b"/>
+            <line x1="0" y1="45" x2="120" y2="45" stroke="#e2e8f0" stroke-width="1"/>
+          </svg>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;">
+            <span>第1次</span><span>第5次</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>分组卡片</h3>
+      <p>每组独立小图，聚焦各自趋势，互不干扰。适合组数较多时一目了然。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>各组清晰独立</li><li>容易看单组走势</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>不易跨组比较</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: 统一折线图（多组叠加） -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px;border-radius:8px;">
+      <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:10px;">方案 B — 统一折线图（所有组叠加，加面积填充）</div>
+      <svg width="100%" height="110" viewBox="0 0 300 110">
+        <!-- grid -->
+        <line x1="30" y1="10" x2="30" y2="90" stroke="#e2e8f0" stroke-width="1"/>
+        <line x1="30" y1="90" x2="280" y2="90" stroke="#e2e8f0" stroke-width="1"/>
+        <line x1="30" y1="10" x2="280" y2="10" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="30" y1="50" x2="280" y2="50" stroke="#f1f5f9" stroke-width="1" stroke-dasharray="4"/>
+        <!-- labels -->
+        <text x="20" y="14" font-size="8" fill="#94a3b8" text-anchor="end">100%</text>
+        <text x="20" y="54" font-size="8" fill="#94a3b8" text-anchor="end">50%</text>
+        <text x="20" y="94" font-size="8" fill="#94a3b8" text-anchor="end">0%</text>
+        <!-- area fills -->
+        <polygon points="50,75 105,58 160,42 215,28 270,15 270,90 50,90" fill="#6366f1" opacity="0.08"/>
+        <polygon points="50,72 105,62 160,50 215,36 270,22 270,90 50,90" fill="#10b981" opacity="0.08"/>
+        <polygon points="50,80 105,70 160,58 215,42 270,18 270,90 50,90" fill="#f59e0b" opacity="0.08"/>
+        <!-- lines -->
+        <polyline points="50,75 105,58 160,42 215,28 270,15" fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="50,72 105,62 160,50 215,36 270,22" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="50,80 105,70 160,58 215,42 270,18" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- dots group1 -->
+        <circle cx="50" cy="75" r="3.5" fill="#6366f1"/><circle cx="105" cy="58" r="3.5" fill="#6366f1"/>
+        <circle cx="160" cy="42" r="3.5" fill="#6366f1"/><circle cx="215" cy="28" r="3.5" fill="#6366f1"/>
+        <circle cx="270" cy="15" r="3.5" fill="#6366f1"/>
+        <!-- dots group2 -->
+        <circle cx="50" cy="72" r="3.5" fill="#10b981"/><circle cx="105" cy="62" r="3.5" fill="#10b981"/>
+        <circle cx="160" cy="50" r="3.5" fill="#10b981"/><circle cx="215" cy="36" r="3.5" fill="#10b981"/>
+        <circle cx="270" cy="22" r="3.5" fill="#10b981"/>
+        <!-- dots group3 -->
+        <circle cx="50" cy="80" r="3.5" fill="#f59e0b"/><circle cx="105" cy="70" r="3.5" fill="#f59e0b"/>
+        <circle cx="160" cy="58" r="3.5" fill="#f59e0b"/><circle cx="215" cy="42" r="3.5" fill="#f59e0b"/>
+        <circle cx="270" cy="18" r="3.5" fill="#f59e0b"/>
+        <!-- x labels -->
+        <text x="50" y="102" font-size="8" fill="#94a3b8" text-anchor="middle">第1次</text>
+        <text x="160" y="102" font-size="8" fill="#94a3b8" text-anchor="middle">第3次</text>
+        <text x="270" y="102" font-size="8" fill="#94a3b8" text-anchor="middle">第5次</text>
+        <!-- legend -->
+        <rect x="50" y="106" width="8" height="3" fill="#6366f1" rx="1"/>
+        <text x="62" y="109" font-size="7" fill="#64748b">第一组</text>
+        <rect x="100" y="106" width="8" height="3" fill="#10b981" rx="1"/>
+        <text x="112" y="109" font-size="7" fill="#64748b">第二组</text>
+        <rect x="150" y="106" width="8" height="3" fill="#f59e0b" rx="1"/>
+        <text x="162" y="109" font-size="7" fill="#64748b">第三组</text>
+      </svg>
+    </div>
+    <div class="card-body">
+      <h3>叠加折线图（带面积）</h3>
+      <p>所有组在同一图表内，加半透明面积填充，直观比较进步速度和最终水平。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>横向比较直观</li><li>视觉层次丰富</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>组多时略拥挤</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: 热力图 + 迷你趋势条 -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px;border-radius:8px;">
+      <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:10px;">方案 C — 表格 + 热力色块（每格显示通过率）</div>
+      <div style="overflow-x:auto;">
+        <table style="border-collapse:collapse;width:100%;font-size:10px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:4px 8px;color:#64748b;font-weight:600;"></th>
+              <th style="padding:4px 8px;color:#64748b;font-weight:600;text-align:center;">第1次</th>
+              <th style="padding:4px 8px;color:#64748b;font-weight:600;text-align:center;">第2次</th>
+              <th style="padding:4px 8px;color:#64748b;font-weight:600;text-align:center;">第3次</th>
+              <th style="padding:4px 8px;color:#64748b;font-weight:600;text-align:center;">第4次</th>
+              <th style="padding:4px 8px;color:#64748b;font-weight:600;text-align:center;">第5次</th>
+              <th style="padding:4px 8px;color:#64748b;font-weight:600;text-align:center;">趋势</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:4px 8px;font-weight:700;color:#4a5568;white-space:nowrap;">第一组</td>
+              <td style="padding:4px 8px;text-align:center;background:#fee2e2;border-radius:4px;color:#991b1b;font-weight:600;">20%</td>
+              <td style="padding:4px 8px;text-align:center;background:#fef3c7;border-radius:4px;color:#92400e;font-weight:600;">45%</td>
+              <td style="padding:4px 8px;text-align:center;background:#d1fae5;border-radius:4px;color:#065f46;font-weight:600;">67%</td>
+              <td style="padding:4px 8px;text-align:center;background:#bbf7d0;border-radius:4px;color:#064e3b;font-weight:600;">80%</td>
+              <td style="padding:4px 8px;text-align:center;background:#6ee7b7;border-radius:4px;color:#064e3b;font-weight:600;">92%</td>
+              <td style="padding:4px 8px;text-align:center;">
+                <svg width="48" height="16" viewBox="0 0 48 16"><polyline points="2,13 14,9 26,6 38,3 46,1" fill="none" stroke="#10b981" stroke-width="2"/></svg>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:4px 8px;font-weight:700;color:#4a5568;white-space:nowrap;">第二组</td>
+              <td style="padding:4px 8px;text-align:center;background:#fef3c7;border-radius:4px;color:#92400e;font-weight:600;">40%</td>
+              <td style="padding:4px 8px;text-align:center;background:#d1fae5;border-radius:4px;color:#065f46;font-weight:600;">55%</td>
+              <td style="padding:4px 8px;text-align:center;background:#bbf7d0;border-radius:4px;color:#064e3b;font-weight:600;">70%</td>
+              <td style="padding:4px 8px;text-align:center;background:#6ee7b7;border-radius:4px;color:#064e3b;font-weight:600;">83%</td>
+              <td style="padding:4px 8px;text-align:center;background:#34d399;border-radius:4px;color:#fff;font-weight:600;">95%</td>
+              <td style="padding:4px 8px;text-align:center;">
+                <svg width="48" height="16" viewBox="0 0 48 16"><polyline points="2,10 14,8 26,5 38,3 46,1" fill="none" stroke="#10b981" stroke-width="2"/></svg>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:4px 8px;font-weight:700;color:#4a5568;white-space:nowrap;">第三组</td>
+              <td style="padding:4px 8px;text-align:center;background:#fee2e2;border-radius:4px;color:#991b1b;font-weight:600;">15%</td>
+              <td style="padding:4px 8px;text-align:center;background:#fee2e2;border-radius:4px;color:#991b1b;font-weight:600;">30%</td>
+              <td style="padding:4px 8px;text-align:center;background:#fef3c7;border-radius:4px;color:#92400e;font-weight:600;">50%</td>
+              <td style="padding:4px 8px;text-align:center;background:#d1fae5;border-radius:4px;color:#065f46;font-weight:600;">68%</td>
+              <td style="padding:4px 8px;text-align:center;background:#bbf7d0;border-radius:4px;color:#064e3b;font-weight:600;">85%</td>
+              <td style="padding:4px 8px;text-align:center;">
+                <svg width="48" height="16" viewBox="0 0 48 16"><polyline points="2,14 14,11 26,8 38,5 46,2" fill="none" stroke="#10b981" stroke-width="2"/></svg>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:6px;font-size:9px;color:#94a3b8;">
+          <span>低</span>
+          <div style="display:flex;gap:2px;">
+            <div style="width:16px;height:8px;background:#fee2e2;border-radius:2px;"></div>
+            <div style="width:16px;height:8px;background:#fef3c7;border-radius:2px;"></div>
+            <div style="width:16px;height:8px;background:#d1fae5;border-radius:2px;"></div>
+            <div style="width:16px;height:8px;background:#6ee7b7;border-radius:2px;"></div>
+            <div style="width:16px;height:8px;background:#34d399;border-radius:2px;"></div>
+          </div>
+          <span>高</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>热力表格 + 迷你趋势</h3>
+      <p>用颜色深浅表示通过率高低，每行末尾附迷你折线图显示趋势，信息密度最高。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul><li>精确数值一览</li><li>颜色立刻判断好坏</li></ul></div>
+        <div class="cons"><h4>缺点</h4><ul><li>不够"图表化"</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">点击选择方案，或在终端告诉我你的想法</p>

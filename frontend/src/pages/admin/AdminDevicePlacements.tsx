@@ -295,7 +295,7 @@ export default function AdminDevicePlacements() {
 
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>设备安放总览</h2>
+      <h2 style={{ marginTop: 0 }}>设备选型总览</h2>
       {groups.length === 0 ? (
         <p style={{ color: '#a0aec0' }}>暂无小组记录</p>
       ) : (

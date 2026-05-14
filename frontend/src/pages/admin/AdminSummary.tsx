@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import type React from 'react'
 import {
-  BarChart, Bar, Rectangle, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, RadarChart, Radar, PolarGrid,
+  BarChart, Bar, Rectangle, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid,
   PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts'
 
@@ -197,13 +198,112 @@ function AreaHeatmap({ groups, mode }: { groups: GroupSummary[]; mode: 'status' 
 }
 
 const tooltipStyle = { fontSize: 14, borderRadius: 8, border: '1px solid #e2e8f0' }
-const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#84cc16']
+function rateColor(rate: number): { bg: string; text: string } {
+  if (rate >= 90) return { bg: '#34d399', text: '#fff' }
+  if (rate >= 80) return { bg: '#bbf7d0', text: '#064e3b' }
+  if (rate >= 60) return { bg: '#d1fae5', text: '#065f46' }
+  if (rate >= 40) return { bg: '#fef3c7', text: '#92400e' }
+  return { bg: '#fee2e2', text: '#991b1b' }
+}
 
-const RANK_COLORS = ['#166534', '#15803d', '#16a34a', '#4ade80', '#bbf7d0', '#f1f5f9']
-const RANK_TEXT = ['#fff', '#fff', '#fff', '#14532d', '#14532d', '#94a3b8']
+// 小组 × 区域矩阵：每格展示该组在该区域的各轮检测通过率
+function CheckTrendMatrix({ groups }: { groups: GroupCheckTrend[] }) {
+  const active = groups.filter(g => g.checks.length > 0)
+  if (active.length === 0) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 80, color: '#a0aec0', fontSize: 14 }}>暂无检测数据</div>
+  )
+
+  const data = active.map(g => ({
+    group_id: g.group_id,
+    group_name: g.group_name,
+    byArea: Object.fromEntries(
+      AREAS.map(area => [area, g.checks.filter(c => c.area === area)])
+    ) as Record<string, CheckAttempt[]>,
+  }))
+
+  const gridCols = `80px repeat(6, 1fr)`
+
+  return (
+    <div>
+      {/* 列头：区域 */}
+      <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 8, marginBottom: 8 }}>
+        <div />
+        {AREA_SHORT.map((a, i) => (
+          <div key={i} style={{ fontSize: 13, fontWeight: 700, color: '#4a5568', textAlign: 'center', paddingBottom: 4 }}>{a}</div>
+        ))}
+      </div>
+
+      {/* 行：每个小组 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {data.map(g => (
+          <div key={g.group_id} style={{ display: 'grid', gridTemplateColumns: gridCols, gap: 8, alignItems: 'start' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#4a5568', paddingTop: 7, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {g.group_name}
+            </div>
+            {AREAS.map(area => {
+              const attempts = g.byArea[area]
+              if (!attempts || attempts.length === 0) {
+                return (
+                  <div key={area} style={{ minHeight: 34, background: '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 13, color: '#cbd5e0' }}>—</span>
+                  </div>
+                )
+              }
+              return (
+                <div key={area} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {attempts.map((a, i) => {
+                    const { bg, text } = rateColor(a.rate)
+                    const isLast = i === attempts.length - 1
+                    return (
+                      <div key={i} style={{
+                        background: bg, color: text,
+                        borderRadius: 7, padding: '4px 6px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        fontWeight: 700, fontSize: 12,
+                        opacity: isLast ? 1 : 0.6,
+                        outline: isLast ? `2px solid ${text}22` : 'none',
+                      }}>
+                        <span style={{ fontSize: 11, fontWeight: 600 }}>第{i + 1}轮</span>
+                        <span>{a.rate}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* 图例 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>通过率</span>
+          {(['#fee2e2', '#fef3c7', '#d1fae5', '#bbf7d0', '#34d399'] as const).map(c => (
+            <div key={c} style={{ width: 14, height: 10, background: c, borderRadius: 2 }} />
+          ))}
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>低→高</span>
+        </div>
+        <span style={{ fontSize: 12, color: '#cbd5e0' }}>·</span>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>最终轮加粗，历史轮半透明；格内从上到下为第1、2、3轮</span>
+      </div>
+    </div>
+  )
+}
+
+function rankStyle(rank: number, maxRank: number): { bg: string; text: string } {
+  const t = maxRank <= 1 ? 1 : 1 - (rank - 1) / (maxRank - 1)
+  if (t > 0.85) return { bg: '#166534', text: '#fff' }
+  if (t > 0.65) return { bg: '#15803d', text: '#fff' }
+  if (t > 0.45) return { bg: '#4ade80', text: '#14532d' }
+  if (t > 0.25) return { bg: '#bbf7d0', text: '#166534' }
+  return { bg: '#f0fdf4', text: '#166534' }
+}
 
 function TimelineGrid({ groups }: { groups: CompletionGroup[] }) {
-  const maxRank = 6
+  const allRanks = groups.flatMap(g => Object.values(g.areas)).filter((r): r is number => r !== null)
+  const maxRank = allRanks.length > 0 ? Math.max(...allRanks) : 1
+
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', gap: 6, marginBottom: 6 }}>
@@ -225,25 +325,24 @@ function TimelineGrid({ groups }: { groups: CompletionGroup[] }) {
                   </div>
                 )
               }
-              const idx = rank - 1
+              const { bg, text } = rankStyle(rank, maxRank)
               return (
-                <div key={area} style={{ height: 56, borderRadius: 8, background: RANK_COLORS[idx], display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                  <span style={{ fontSize: 18, fontWeight: 900, color: RANK_TEXT[idx] }}>第{rank}</span>
-                  <span style={{ fontSize: 11, color: RANK_TEXT[idx], opacity: 0.8 }}>完成</span>
+                <div key={area} style={{ height: 56, borderRadius: 8, background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                  <span style={{ fontSize: 18, fontWeight: 900, color: text }}>#{rank}</span>
+                  <span style={{ fontSize: 11, color: text, opacity: 0.8 }}>共{maxRank}项</span>
                 </div>
               )
             })}
           </div>
         ))}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
-        {Array.from({ length: maxRank }, (_, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{ width: 14, height: 14, borderRadius: 3, background: RANK_COLORS[i] }} />
-            <span style={{ fontSize: 12, color: '#64748b' }}>第{i + 1}</span>
-          </div>
-        ))}
-        <span style={{ fontSize: 12, color: '#a0aec0', marginLeft: 4 }}>深绿 = 最早攻克</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+        {[0.9, 0.7, 0.5, 0.3, 0.1].map((t, i) => {
+          const fakeRank = Math.round((1 - t) * (maxRank - 1)) + 1
+          const { bg } = rankStyle(fakeRank, maxRank)
+          return <div key={i} style={{ width: 16, height: 16, borderRadius: 3, background: bg }} />
+        })}
+        <span style={{ fontSize: 12, color: '#a0aec0', marginLeft: 4 }}>深绿 = 全班最早完成；所有组所有区域统一排名，灰格 = 尚未通过检测</span>
       </div>
     </div>
   )
@@ -274,6 +373,12 @@ export default function AdminSummary() {
   const activityData = groups.map(g => ({
     name: g.name,
     学生消息: g.user_message_count,
+  }))
+
+  // 流程图生成次数
+  const flowchartData = groups.map(g => ({
+    name: g.name,
+    生成次数: g.total_flowcharts,
   }))
 
   // 检测通过率
@@ -313,18 +418,32 @@ export default function AdminSummary() {
         <KpiCard label="设备全部完成" value={`${overview.all_device_complete}/${overview.total_groups}`} sub="组完成全部安放" color="#06b6d4" />
       </div>
 
-      {/* 第一行：各组与 AI 对话次数 */}
-      <ChartCard title="各组与 AI 对话次数" height={280}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={activityData} barCategoryGap="40%">
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="name" tick={{ fontSize: 14, fill: '#64748b' }} />
-            <YAxis tick={{ fontSize: 14, fill: '#64748b' }} />
-            <Tooltip formatter={(v) => [v, '对话次数']} contentStyle={tooltipStyle} />
-            <Bar dataKey="学生消息" name="对话次数" fill="#3b82f6" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      {/* 第一行：对话次数 + 流程图生成次数 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <ChartCard title="各组与 AI 对话次数" height={280}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={activityData} barCategoryGap="40%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="name" tick={{ fontSize: 14, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 14, fill: '#64748b' }} />
+              <Tooltip formatter={(v) => [v, '对话次数']} contentStyle={tooltipStyle} />
+              <Bar dataKey="学生消息" name="对话次数" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="各组流程图生成总次数" height={280}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={flowchartData} barCategoryGap="40%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="name" tick={{ fontSize: 14, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 14, fill: '#64748b' }} />
+              <Tooltip formatter={(v) => [v, '生成次数']} contentStyle={tooltipStyle} />
+              <Bar dataKey="生成次数" name="生成次数" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
 
       {/* 第二行：通过率 + 区域难度 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -384,41 +503,13 @@ export default function AdminSummary() {
         <>
           <div style={{ fontSize: 22, fontWeight: 900, color: '#1a202c', paddingTop: 8 }}>学习进步分析</div>
 
-          {/* 检测通过率趋势折线图 */}
-          <ChartCard title="各组历次检测通过率趋势" height={320}>
-            {progress.checkTrend.every(g => g.checks.length === 0) ? (
-              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a0aec0', fontSize: 14 }}>暂无检测数据</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart margin={{ top: 8, right: 24, left: 0, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis
-                    dataKey="attempt"
-                    type="number"
-                    allowDuplicatedCategory={false}
-                    label={{ value: '第几次检测', position: 'insideBottom', offset: -4, fontSize: 13, fill: '#94a3b8' }}
-                    tick={{ fontSize: 14, fill: '#64748b' }}
-                  />
-                  <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 14, fill: '#64748b' }} />
-                  <Tooltip formatter={(v) => [`${v}%`, '通过率']} contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 15 }} />
-                  {progress.checkTrend.filter(g => g.checks.length > 0).map((g, i) => (
-                    <Line
-                      key={g.group_id}
-                      data={g.checks}
-                      dataKey="rate"
-                      name={g.group_name}
-                      stroke={GROUP_COLORS[i % GROUP_COLORS.length]}
-                      strokeWidth={3}
-                      dot={{ r: 5 }}
-                      activeDot={{ r: 7 }}
-                      connectNulls
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </ChartCard>
+          {/* 检测通过率趋势热力表格 */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#1a202c', marginBottom: 20, paddingBottom: 12, borderBottom: '3px solid #edf2f7' }}>
+              各组历次检测通过率趋势
+            </div>
+            <CheckTrendMatrix groups={progress.checkTrend} />
+          </div>
 
           {/* 完成时间线 */}
           <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
