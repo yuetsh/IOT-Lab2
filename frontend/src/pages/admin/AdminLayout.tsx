@@ -24,7 +24,7 @@ export default function AdminLayout() {
           style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', color: '#718096', fontSize: 13 }}
         >← 学生页面</button>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 24 }}>
         <Outlet />
       </div>
     </div>

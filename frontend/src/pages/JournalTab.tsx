@@ -18,10 +18,15 @@ interface Placement {
 interface FlowNode { id: string; label: string }
 interface NodeOverlay { nodeId: string; x: number; y: number; w: number; h: number }
 
+const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统'] as const
+
 interface Props {
   mermaidCode: string | null
   stickers: Sticker[]
   placements: Placement[]
+  area?: string | null
+  areasWithFlowcharts?: string[]
+  onAreaChange?: (area: string) => void
   onSave: (placements: Omit<Placement, 'id'>[]) => void
   onSubmit?: (placements: Omit<Placement, 'id'>[]) => Promise<void>
 }
@@ -60,7 +65,7 @@ function DeviceCard({ sticker, isDragging, onPointerDown }: {
   )
 }
 
-export default function JournalTab({ mermaidCode, stickers, placements: initPlacements, onSave, onSubmit }: Props) {
+export default function JournalTab({ mermaidCode, stickers, placements: initPlacements, area, areasWithFlowcharts, onAreaChange, onSave, onSubmit }: Props) {
   const [placements, setPlacements] = useState<Placement[]>(initPlacements.filter(p => p.node_id))
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>([])
   const [svgElement, setSvgElement] = useState<SVGSVGElement | null>(null)
@@ -233,6 +238,35 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
 
       {/* Left: flowchart */}
       <div style={{ flex: 3, overflowY: 'auto', padding: 16, borderRight: '1px solid #e2e8f0' }}>
+        {/* 功能区域选择 */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          {AREAS.map(a => {
+            const isActive = a === area
+            const hasFlowchart = areasWithFlowcharts?.includes(a) ?? false
+            return (
+              <button
+                key={a}
+                onClick={() => onAreaChange?.(a)}
+                style={{
+                  padding: '4px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12,
+                  background: isActive ? '#4299e1' : '#f7fafc',
+                  color: isActive ? '#fff' : '#718096',
+                  fontWeight: isActive ? 600 : 400,
+                  transition: 'background 0.15s',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                {a}
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                  background: hasFlowchart
+                    ? (isActive ? 'rgba(255,255,255,0.9)' : '#48bb78')
+                    : (isActive ? 'rgba(255,255,255,0.35)' : '#cbd5e0'),
+                }} />
+              </button>
+            )
+          })}
+        </div>
         <p style={{ margin: '0 0 8px', fontSize: 13, color: '#718096' }}>
           从右侧拖拽设备，直接放到流程图节点上完成指派
         </p>
@@ -243,7 +277,9 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
           {mermaidCode ? (
             <MermaidRenderer code={mermaidCode} style={{ padding: 16 }} onRender={handleMermaidRender} />
           ) : (
-            <div style={{ padding: 60, textAlign: 'center', color: '#a0aec0' }}>先在对话标签页生成流程图</div>
+            <div style={{ padding: 60, textAlign: 'center', color: '#a0aec0' }}>
+              {area ? `「${area}」暂无流程图，请先在智能体标签页生成` : '请先选择上方功能区域'}
+            </div>
           )}
 
           {/* Node overlays */}

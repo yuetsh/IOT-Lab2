@@ -33,6 +33,12 @@ export const groupsRouter = new Elysia({ prefix: '/api/groups' })
         : db.query('SELECT NULL as id, mermaid_code, area, updated_at FROM flowcharts WHERE group_id = ?').get(params.id)
     return { messages, flowchart: flowchart ?? null }
   })
+  .get('/:id/areas-with-flowcharts', ({ params }) => {
+    const rows = db.query(
+      'SELECT DISTINCT area FROM flowchart_history WHERE group_id = ? AND area IS NOT NULL'
+    ).all(params.id) as { area: string }[]
+    return rows.map(r => r.area)
+  })
   .get('/:id/flowchart-history', ({ params }) => {
     const groupId = params.id
     const histories = db.query(

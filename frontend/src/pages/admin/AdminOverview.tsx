@@ -26,7 +26,7 @@ export function getHistoryPromptText(userPrompt: string | null | undefined): str
   return prompt ? prompt : '未记录提示词'
 }
 
-function AreaHistory({ entries }: { area: string; entries: HistoryEntry[] }) {
+function AreaHistory({ entries, onZoom }: { area: string; entries: HistoryEntry[]; onZoom: (code: string) => void }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
       {entries.map((entry, idx) => {
@@ -73,7 +73,13 @@ function AreaHistory({ entries }: { area: string; entries: HistoryEntry[] }) {
                   {getHistoryPromptText(entry.user_prompt)}
                 </div>
               </div>
-              <MermaidRenderer code={entry.mermaid_code} />
+              <div
+                onClick={() => onZoom(entry.mermaid_code)}
+                title="点击放大"
+                style={{ cursor: 'zoom-in' }}
+              >
+                <MermaidRenderer code={entry.mermaid_code} />
+              </div>
             </div>
 
             {/* 最新一次检测记录 */}
@@ -106,20 +112,19 @@ function AreaHistory({ entries }: { area: string; entries: HistoryEntry[] }) {
   )
 }
 
-function GroupCard({ group }: { group: GroupFull }) {
-  const areas = Object.keys(group.areas)
-  const [activeArea, setActiveArea] = useState(areas[0] ?? '')
+const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统'] as const
 
-  if (areas.length === 0) return null
+function GroupCard({ group, onZoom }: { group: GroupFull; onZoom: (code: string) => void }) {
+  const [activeArea, setActiveArea] = useState<string>(AREAS[0])
 
-  const totalCharts = areas.reduce((s, a) => s + group.areas[a].length, 0)
-  const totalPassed = areas.reduce((s, a) =>
-    s + group.areas[a].reduce((s2, e) => {
+  const totalCharts = AREAS.reduce((s, a) => s + (group.areas[a]?.length ?? 0), 0)
+  const totalPassed = AREAS.reduce((s, a) =>
+    s + (group.areas[a] ?? []).reduce((s2, e) => {
       const last = e.check_runs[e.check_runs.length - 1]
       return s2 + (last?.results.filter(r => r.passed).length ?? 0)
     }, 0), 0)
-  const totalChecked = areas.reduce((s, a) =>
-    s + group.areas[a].reduce((s2, e) => {
+  const totalChecked = AREAS.reduce((s, a) =>
+    s + (group.areas[a] ?? []).reduce((s2, e) => {
       const last = e.check_runs[e.check_runs.length - 1]
       return s2 + (last?.results.length ?? 0)
     }, 0), 0)
@@ -146,30 +151,39 @@ function GroupCard({ group }: { group: GroupFull }) {
       </div>
 
       {/* 区域 tab */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e2e8f0', background: '#f7fafc', overflowX: 'auto' }}>
-        {areas.map(area => (
-          <button
-            key={area}
-            onClick={() => setActiveArea(area)}
-            style={{
-              padding: '8px 20px', border: 'none', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
-              background: activeArea === area ? '#fff' : 'transparent',
-              color: activeArea === area ? '#2b6cb0' : '#718096',
-              fontWeight: activeArea === area ? 600 : 400,
-              borderBottom: activeArea === area ? '2px solid #4299e1' : '2px solid transparent',
-              transition: 'all 0.15s',
-            }}
-          >
-            {area}
-            <span style={{ marginLeft: 4, fontSize: 11, opacity: 0.7 }}>×{group.areas[area].length}</span>
-          </button>
-        ))}
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {AREAS.map(area => {
+          const hasData = (group.areas[area]?.length ?? 0) > 0
+          const isActive = area === activeArea
+          return (
+            <button
+              key={area}
+              onClick={() => setActiveArea(area)}
+              style={{
+                padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13,
+                background: isActive ? '#4299e1' : hasData ? '#c6f6d5' : '#f7fafc',
+                color: isActive ? '#fff' : hasData ? '#276749' : '#a0aec0',
+                fontWeight: isActive || hasData ? 600 : 400,
+                transition: 'background 0.15s',
+              }}
+            >
+              {area}
+              {hasData && !isActive && (
+                <span style={{ marginLeft: 4, fontSize: 10 }}>✓</span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* 历史内容 */}
       <div style={{ padding: '16px 20px' }}>
-        {activeArea && group.areas[activeArea] && (
-          <AreaHistory area={activeArea} entries={group.areas[activeArea]} />
+        {(group.areas[activeArea]?.length ?? 0) > 0 ? (
+          <AreaHistory area={activeArea} entries={group.areas[activeArea]} onZoom={onZoom} />
+        ) : (
+          <div style={{ padding: '32px 0', textAlign: 'center', color: '#cbd5e0', fontSize: 13 }}>
+            该区域暂无流程图记录
+          </div>
         )}
       </div>
     </div>
@@ -179,6 +193,7 @@ function GroupCard({ group }: { group: GroupFull }) {
 export default function AdminOverview() {
   const [groups, setGroups] = useState<GroupFull[]>([])
   const [loading, setLoading] = useState(true)
+  const [fullscreenCode, setFullscreenCode] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/full')
@@ -189,15 +204,47 @@ export default function AdminOverview() {
   if (loading) return <p style={{ color: '#a0aec0' }}>加载中…</p>
 
   return (
-    <div>
-      <h2 style={{ marginTop: 0 }}>各组作品概览</h2>
-      {groups.length === 0 ? (
-        <p style={{ color: '#a0aec0' }}>暂无小组数据</p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {groups.map(g => <GroupCard key={g.id} group={g} />)}
+    <>
+      <div>
+        <h2 style={{ marginTop: 0 }}>流程图设计总览</h2>
+        {groups.length === 0 ? (
+          <p style={{ color: '#a0aec0' }}>暂无小组数据</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {groups.map(g => <GroupCard key={g.id} group={g} onZoom={setFullscreenCode} />)}
+          </div>
+        )}
+      </div>
+
+      {fullscreenCode && (
+        <div
+          onClick={() => setFullscreenCode(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.75)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 12, padding: 32,
+              width: '92vw', height: '90vh', overflow: 'auto',
+              position: 'relative',
+            }}
+          >
+            <button
+              onClick={() => setFullscreenCode(null)}
+              style={{
+                position: 'absolute', top: 12, right: 12,
+                border: 'none', background: 'transparent',
+                fontSize: 20, cursor: 'pointer', color: '#718096', lineHeight: 1,
+              }}
+            >✕</button>
+            <MermaidRenderer code={fullscreenCode} style={{ minWidth: 600 }} />
+          </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

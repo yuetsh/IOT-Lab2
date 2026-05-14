@@ -35,6 +35,7 @@ export default function GroupWorkspace() {
   const [mermaidCode, setMermaidCode] = useState<string | null>(null)
   const [stickers, setStickers] = useState<Sticker[]>([])
   const [placements, setPlacements] = useState<Placement[]>([])
+  const [areasWithFlowcharts, setAreasWithFlowcharts] = useState<string[]>([])
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContext>(routeContext)
   const lastNonEmptyMermaidCodeRef = useRef<string | null>(null)
   const mermaidCodeRef = useRef<string | null>(null)
@@ -55,11 +56,22 @@ export default function GroupWorkspace() {
       .then(r => r.json())
       .then(data => {
         const code = data.flowchart?.mermaid_code ?? null
+        const flowchartId: number | null = data.flowchart?.id ?? null
         setMermaidCode(code)
         lastNonEmptyMermaidCodeRef.current = code
+        // 设备台切换区域后，把加载到的 flowchartId 补回 URL
+        if (tab === 'journal' && routeContext.area && flowchartId != null && routeContext.flowchartId == null) {
+          navigate(getGroupWorkspacePath(id, 'journal', { area: routeContext.area, flowchartId }), { replace: true })
+        }
+        // 没有流程图时清空设备，有流程图时才加载已保存的摆放
+        if (code === null) {
+          setPlacements([])
+        } else {
+          fetch(`/api/groups/${id}/journal`).then(r => r.json()).then(setPlacements)
+        }
       })
     fetch('/api/stickers').then(r => r.json()).then(setStickers)
-    fetch(`/api/groups/${id}/journal`).then(r => r.json()).then(setPlacements)
+    fetch(`/api/groups/${id}/areas-with-flowcharts`).then(r => r.json()).then(setAreasWithFlowcharts)
   }, [id, tab, routeContext])
 
   const handleWorkspaceContextChange = useCallback((context: WorkspaceContext) => {
@@ -110,6 +122,12 @@ export default function GroupWorkspace() {
       })
     })
   }, [id])
+
+  const handleJournalAreaChange = useCallback((area: string) => {
+    if (!id || !isGroupWorkspaceTab(tab)) return
+    const nextPath = getGroupWorkspacePath(id, 'journal', { area })
+    navigate(nextPath, { replace: true })
+  }, [id, tab, navigate])
 
   const handleMermaidChange = useCallback((nextCode: string | null) => {
     const previousCode = lastNonEmptyMermaidCodeRef.current
@@ -171,6 +189,9 @@ export default function GroupWorkspace() {
             mermaidCode={mermaidCode}
             stickers={stickers}
             placements={placements}
+            area={routeArea}
+            areasWithFlowcharts={areasWithFlowcharts}
+            onAreaChange={handleJournalAreaChange}
             onSave={next => { setPlacements(next as Placement[]); savePlacements(next) }}
             onSubmit={submitDeviceTable}
           />
