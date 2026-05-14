@@ -89,6 +89,25 @@ export default function GroupWorkspace() {
     })
   }, [id])
 
+  const submitDeviceTable = useCallback(async (next: Omit<Placement, 'id'>[]) => {
+    if (!id) return
+    await fetch(`/api/groups/${id}/device-submissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        placements: next
+          .filter(p => p.node_id && p.node_label)
+          .map(p => ({
+            sticker_id: p.sticker_id,
+            node_id: p.node_id!,
+            node_label: p.node_label!,
+            sticker_name: p.sticker_name,
+            sticker_filename: p.sticker_filename,
+          }))
+      })
+    })
+  }, [id])
+
   const handleMermaidChange = useCallback((nextCode: string | null) => {
     const previousCode = lastNonEmptyMermaidCodeRef.current
 
@@ -150,6 +169,7 @@ export default function GroupWorkspace() {
             stickers={stickers}
             placements={placements}
             onSave={next => { setPlacements(next as Placement[]); savePlacements(next) }}
+            onSubmit={submitDeviceTable}
           />
         )}
       </div>

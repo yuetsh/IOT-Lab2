@@ -13,6 +13,7 @@ interface GroupFull {
   id: number
   name: string
   areas: Record<string, HistoryEntry[]>
+  device_submissions_count: number
 }
 
 function fmt(dt: string) {
@@ -105,6 +106,9 @@ function GroupCard({ group }: { group: GroupFull }) {
         <h3 style={{ margin: 0, fontSize: 16, color: '#2b6cb0' }}>{group.name}</h3>
         <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#4a5568' }}>
           <span>共 {totalCharts} 次生成</span>
+          {group.device_submissions_count > 0 && (
+            <span style={{ color: '#276749' }}>设备台已保存 {group.device_submissions_count} 次</span>
+          )}
           {totalChecked > 0 && (
             <span style={{
               fontWeight: 600,

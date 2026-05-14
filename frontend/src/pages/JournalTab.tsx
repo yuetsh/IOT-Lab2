@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useDraggable, useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import MermaidRenderer from '../components/MermaidRenderer'
@@ -24,6 +24,7 @@ interface Props {
   stickers: Sticker[]
   placements: Placement[]
   onSave: (placements: Omit<Placement, 'id'>[]) => void
+  onSubmit?: (placements: Omit<Placement, 'id'>[]) => Promise<void>
 }
 
 function DraggableSticker({ sticker }: { sticker: Sticker }) {
@@ -123,12 +124,14 @@ function getMermaidNodeLabel(node: SVGGElement, fallback: string) {
   return textLabel || fallback
 }
 
-export default function JournalTab({ mermaidCode, stickers, placements: initPlacements, onSave }: Props) {
+export default function JournalTab({ mermaidCode, stickers, placements: initPlacements, onSave, onSubmit }: Props) {
   const [placements, setPlacements] = useState<Placement[]>(initPlacements.filter(p => p.node_id))
   const [activeSticker, setActiveSticker] = useState<Sticker | null>(null)
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [svgElement, setSvgElement] = useState<SVGSVGElement | null>(null)
+  const [submitState, setSubmitState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setPlacements(initPlacements.filter(p => p.node_id))
@@ -261,7 +264,28 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ flex: 1, overflow: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {onSubmit && (
+            <button
+              disabled={submitState === 'saving' || placements.length === 0}
+              onClick={async () => {
+                if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+                setSubmitState('saving')
+                await onSubmit(placements)
+                setSubmitState('saved')
+                savedTimerRef.current = setTimeout(() => setSubmitState('idle'), 2500)
+              }}
+              style={{
+                padding: '10px 0', borderRadius: 8, border: 'none', cursor: placements.length === 0 ? 'default' : 'pointer',
+                fontSize: 14, fontWeight: 600,
+                background: submitState === 'saved' ? '#c6f6d5' : placements.length === 0 ? '#edf2f7' : '#4299e1',
+                color: submitState === 'saved' ? '#276749' : placements.length === 0 ? '#a0aec0' : '#fff',
+                transition: 'background 0.2s, color 0.2s',
+              }}
+            >
+              {submitState === 'saving' ? '保存中…' : submitState === 'saved' ? '已保存 ✓' : '保存设备方案'}
+            </button>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#2d3748' }}>当前节点</p>
             <div style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff' }}>
@@ -279,13 +303,15 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
             />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#4a5568' }}>设备</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, overflow: 'hidden' }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#4a5568', flexShrink: 0 }}>设备</p>
             {stickers.length === 0 && (
               <p style={{ color: '#a0aec0', fontSize: 13 }}>暂无设备，教师可在后台上传</p>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-              {stickers.map(s => <DraggableSticker key={s.id} sticker={s} />)}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                {stickers.map(s => <DraggableSticker key={s.id} sticker={s} />)}
+              </div>
             </div>
           </div>
         </div>

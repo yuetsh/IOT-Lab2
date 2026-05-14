@@ -89,5 +89,14 @@ db.query(`
 try { db.query('ALTER TABLE journal_placements ADD COLUMN node_id TEXT').run() } catch {}
 try { db.query('ALTER TABLE journal_placements ADD COLUMN node_label TEXT').run() } catch {}
 
+db.query(`
+  CREATE TABLE IF NOT EXISTS device_submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    placements_json TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`).run()
+
 const uploadsDir = process.env.UPLOADS_PATH ?? 'uploads'
 mkdirSync(`${uploadsDir}/stickers`, { recursive: true })

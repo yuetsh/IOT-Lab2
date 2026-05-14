@@ -6,6 +6,7 @@ import { chatRouter } from './routes/chat'
 import { journalRouter } from './routes/journal'
 import { stickersRouter } from './routes/stickers'
 import { adminRouter } from './routes/admin'
+import { deviceSubmissionsRouter } from './routes/deviceSubmissions'
 
 const app = new Elysia()
   .use(cors())
@@ -14,6 +15,7 @@ const app = new Elysia()
   .use(journalRouter)
   .use(stickersRouter)
   .use(adminRouter)
+  .use(deviceSubmissionsRouter)
   .listen(3000)
 
 console.log(`Server running at http://localhost:${app.server?.port}`)

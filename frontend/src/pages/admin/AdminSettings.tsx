@@ -66,7 +66,7 @@ export default function AdminSettings() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <ActionCard
           title="加载示例数据"
-          description="清空现有数据并写入 seed 数据（4 个小组、流程图历史与检测记录）"
+          description="清空现有数据并写入 seed 数据（6 个小组和设备贴纸）"
           buttonLabel="加载 Seed"
           buttonColor="#3182ce"
           onConfirm={async () => {
