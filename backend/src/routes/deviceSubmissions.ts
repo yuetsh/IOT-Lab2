@@ -3,10 +3,10 @@ import { db } from '../db'
 
 export const deviceSubmissionsRouter = new Elysia()
   .post('/api/groups/:id/device-submissions', ({ params, body }) => {
-    db.query(
+    const result = db.query(
       'INSERT INTO device_submissions (group_id, placements_json, mermaid_code) VALUES (?, ?, ?)'
     ).run(Number(params.id), JSON.stringify(body.placements), body.mermaid_code ?? null)
-    return { ok: true }
+    return { ok: true, submission_id: Number(result.lastInsertRowid) }
   }, {
     body: t.Object({
       placements: t.Array(t.Object({
