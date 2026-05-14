@@ -75,7 +75,9 @@ export const adminRouter = new Elysia()
     const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
     const groups = db.query('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[]
     type Placement = { sticker_id: number; node_id: string; node_label: string; sticker_name: string; sticker_filename: string }
-    type AreaData = { mermaid_code: string | null; placements: Placement[]; submission_created_at: string | null }
+    type CheckResultItem = { device_name: string; node_label: string; passed: boolean; comment: string }
+    type CheckResult = { passed_count: number; total_count: number; results: CheckResultItem[]; created_at: string }
+    type AreaData = { mermaid_code: string | null; placements: Placement[]; submission_created_at: string | null; check_result: CheckResult | null }
 
     const result = []
     for (const g of groups) {
@@ -97,18 +99,35 @@ export const adminRouter = new Elysia()
 
       // 所有提交，从新到旧，每个区域只取最新一次
       const submissions = db.query(
-        'SELECT placements_json, created_at, mermaid_code FROM device_submissions WHERE group_id = ? ORDER BY created_at DESC'
-      ).all(g.id) as { placements_json: string; created_at: string; mermaid_code: string | null }[]
+        'SELECT id, placements_json, created_at, mermaid_code FROM device_submissions WHERE group_id = ? ORDER BY created_at DESC'
+      ).all(g.id) as { id: number; placements_json: string; created_at: string; mermaid_code: string | null }[]
 
       const areaResult: Record<string, AreaData> = {}
       for (const sub of submissions) {
         if (!sub.mermaid_code) continue
         const area = codeToArea.get(sub.mermaid_code)
         if (!area || areaResult[area]) continue
+
+        const checkRow = db.query(
+          'SELECT results_json, created_at FROM device_check_results WHERE submission_id = ? ORDER BY created_at DESC LIMIT 1'
+        ).get(sub.id) as { results_json: string; created_at: string } | null
+
+        let check_result: CheckResult | null = null
+        if (checkRow) {
+          const results = JSON.parse(checkRow.results_json) as CheckResultItem[]
+          check_result = {
+            passed_count: results.filter(r => r.passed).length,
+            total_count: results.length,
+            results,
+            created_at: checkRow.created_at,
+          }
+        }
+
         areaResult[area] = {
           mermaid_code: sub.mermaid_code,
           placements: JSON.parse(sub.placements_json) as Placement[],
           submission_created_at: sub.created_at,
+          check_result,
         }
       }
 
@@ -119,6 +138,7 @@ export const adminRouter = new Elysia()
             mermaid_code: latestFlowchart[area] ?? null,
             placements: [],
             submission_created_at: null,
+            check_result: null,
           }
         }
       }
