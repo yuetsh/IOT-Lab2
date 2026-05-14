@@ -146,7 +146,7 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [submitState, setSubmitState] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [checkState, setCheckState] = useState<'idle' | 'checking' | 'done' | 'error'>('idle')
+  const [checkState, setCheckState] = useState<'idle' | 'checking'>('idle')
   const [modalOpen, setModalOpen] = useState(false)
 
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -465,10 +465,9 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
                 setCheckState('checking')
                 try {
                   await onAiCheck()
-                  setCheckState('done')
+                  setCheckState('idle')
                   setModalOpen(true)
                 } catch {
-                  setCheckState('error')
                   showToast('AI 检测失败，请重试')
                   setCheckState('idle')
                 }
