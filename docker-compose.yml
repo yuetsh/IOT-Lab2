@@ -5,6 +5,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_PATH=/app/data/data.sqlite
       - UPLOADS_PATH=/app/uploads
