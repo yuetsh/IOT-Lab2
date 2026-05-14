@@ -3,8 +3,8 @@ services:
     build: ./backend
     restart: unless-stopped
     volumes:
-      - sqlite_data:/app/data
-      - uploads_data:/app/uploads
+      - ./data:/app/data
+      - ./uploads:/app/uploads
     environment:
       - DATABASE_PATH=/app/data/data.sqlite
       - UPLOADS_PATH=/app/uploads
@@ -16,7 +16,3 @@ services:
       - "80:80"
     depends_on:
       - backend
-
-volumes:
-  sqlite_data:
-  uploads_data:
