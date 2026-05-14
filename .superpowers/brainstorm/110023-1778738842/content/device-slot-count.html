@@ -1,0 +1,52 @@
+<h2>设备槽位数量</h2>
+<p class="subtitle">请确认每个流程图方块下方的空处是单设备槽，还是可容纳多个设备。</p>
+
+<div class="split">
+  <div class="card" data-choice="single-slot" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:grid;grid-template-columns:1fr;gap:14px;max-width:360px;margin:0 auto;">
+        <div style="display:flex;align-items:center;gap:22px;justify-content:center;">
+          <div style="width:132px;padding:14px 16px;border-radius:8px;background:#4f46e5;color:#fff;text-align:center;font-weight:700;">检测人员进入</div>
+          <div style="height:2px;width:52px;background:#64748b;"></div>
+          <div style="width:132px;padding:14px 16px;border-radius:8px;background:#4f46e5;color:#fff;text-align:center;font-weight:700;">发送开门信号</div>
+        </div>
+        <div style="display:flex;gap:76px;justify-content:center;">
+          <div style="width:86px;height:62px;border:2px dashed #38bdf8;border-radius:8px;background:#f0f9ff;display:flex;align-items:center;justify-content:center;color:#0369a1;font-size:12px;">放 1 个设备</div>
+          <div style="width:86px;height:62px;border:2px dashed #38bdf8;border-radius:8px;background:#f0f9ff;display:flex;align-items:center;justify-content:center;">
+            <div style="width:42px;height:42px;border-radius:10px;background:#14b8a6;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 每个方块一个设备槽</h3>
+      <p>最适合之后做“这个节点应该放哪个设备”的严格判定。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="multi-slot" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:grid;grid-template-columns:1fr;gap:14px;max-width:360px;margin:0 auto;">
+        <div style="display:flex;align-items:center;gap:22px;justify-content:center;">
+          <div style="width:132px;padding:14px 16px;border-radius:8px;background:#4f46e5;color:#fff;text-align:center;font-weight:700;">检测人员进入</div>
+          <div style="height:2px;width:52px;background:#64748b;"></div>
+          <div style="width:132px;padding:14px 16px;border-radius:8px;background:#4f46e5;color:#fff;text-align:center;font-weight:700;">发送开门信号</div>
+        </div>
+        <div style="display:flex;gap:54px;justify-content:center;">
+          <div style="width:110px;height:62px;border:2px dashed #38bdf8;border-radius:8px;background:#f0f9ff;display:flex;align-items:center;justify-content:center;gap:5px;">
+            <div style="width:28px;height:28px;border-radius:7px;background:#14b8a6;"></div>
+            <div style="width:28px;height:28px;border-radius:7px;background:#f59e0b;"></div>
+          </div>
+          <div style="width:110px;height:62px;border:2px dashed #38bdf8;border-radius:8px;background:#f0f9ff;display:flex;align-items:center;justify-content:center;gap:5px;">
+            <div style="width:28px;height:28px;border-radius:7px;background:#ef4444;"></div>
+            <div style="width:28px;height:28px;border-radius:7px;background:#22c55e;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 每个方块一个多设备槽</h3>
+      <p>适合一个流程步骤需要多个设备共同完成，但判定规则会更复杂。</p>
+    </div>
+  </div>
+</div>

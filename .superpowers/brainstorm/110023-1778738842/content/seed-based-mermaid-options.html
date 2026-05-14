@@ -1,0 +1,92 @@
+<h2>基于 seed 真实流程图的方案</h2>
+<p class="subtitle">seed 里的流程图节点本身多是设备/系统名称，并且有分支、汇聚和回路。下面两个方案都保留 Mermaid 渲染，不重画流程图。</p>
+
+<div class="split">
+  <div class="card" data-choice="node-overlay" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="height:390px;padding:16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+        <div style="font-size:12px;color:#475569;margin-bottom:10px;font-weight:700;">大厅安防 seed 示例</div>
+        <div style="position:relative;height:330px;background:#f8fafc;border-radius:8px;overflow:hidden;">
+          <svg viewBox="0 0 680 330" style="width:100%;height:100%;display:block;font-family:ui-sans-serif,system-ui,sans-serif;">
+            <defs>
+              <marker id="seedArrowA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#64748b"></path></marker>
+            </defs>
+            <path d="M122 62 L260 62" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowA)"></path>
+            <path d="M122 134 L260 80" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowA)"></path>
+            <path d="M122 206 L260 98" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowA)"></path>
+            <path d="M122 278 L260 116" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowA)"></path>
+            <path d="M392 88 L500 88" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowA)"></path>
+            <path d="M392 88 C450 110 450 155 500 155" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowA)"></path>
+            <path d="M392 88 C452 140 452 222 500 222" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowA)"></path>
+            <path d="M392 88 C452 174 452 286 500 286" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowA)"></path>
+            <rect x="12" y="34" width="110" height="46" rx="6" fill="#60a5fa" stroke="#2563eb" stroke-width="2"></rect>
+            <text x="67" y="62" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">温湿度传感器</text>
+            <rect x="12" y="106" width="110" height="46" rx="6" fill="#60a5fa" stroke="#2563eb" stroke-width="2"></rect>
+            <text x="67" y="134" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">CO₂传感器</text>
+            <rect x="12" y="178" width="110" height="46" rx="6" fill="#60a5fa" stroke="#2563eb" stroke-width="2"></rect>
+            <text x="67" y="206" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">烟雾传感器</text>
+            <rect x="12" y="250" width="110" height="46" rx="6" fill="#60a5fa" stroke="#2563eb" stroke-width="2"></rect>
+            <text x="67" y="278" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">火焰传感器</text>
+            <rect x="260" y="58" width="132" height="60" rx="6" fill="#34d399" stroke="#059669" stroke-width="2"></rect>
+            <text x="326" y="93" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">MQTT网关</text>
+            <rect x="500" y="60" width="118" height="46" rx="6" fill="#fb923c" stroke="#ea580c" stroke-width="2"></rect>
+            <text x="559" y="88" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">云服务器</text>
+            <rect x="500" y="132" width="118" height="46" rx="6" fill="#a78bfa" stroke="#7c3aed" stroke-width="2"></rect>
+            <text x="559" y="160" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">空调制冷</text>
+            <rect x="500" y="199" width="118" height="46" rx="6" fill="#a78bfa" stroke="#7c3aed" stroke-width="2"></rect>
+            <text x="559" y="227" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">除湿控制器</text>
+            <rect x="500" y="263" width="118" height="46" rx="6" fill="#a78bfa" stroke="#7c3aed" stroke-width="2"></rect>
+            <text x="559" y="291" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">预警展示屏</text>
+          </svg>
+          <div style="position:absolute;inset:0;pointer-events:none;">
+            <div style="position:absolute;left:24px;top:82px;width:86px;height:36px;border:2px dashed #0ea5e9;border-radius:8px;background:#f0f9ff;display:flex;align-items:center;justify-content:center;font-size:11px;color:#0369a1;">设备槽</div>
+            <div style="position:absolute;left:24px;top:154px;width:86px;height:36px;border:2px dashed #0ea5e9;border-radius:8px;background:#f0f9ff;display:flex;align-items:center;justify-content:center;font-size:11px;color:#0369a1;">设备槽</div>
+            <div style="position:absolute;left:24px;top:226px;width:86px;height:36px;border:2px dashed #e53e3e;border-radius:8px;background:#fff5f5;display:flex;align-items:center;justify-content:center;font-size:11px;color:#b91c1c;">设备槽</div>
+            <div style="position:absolute;left:272px;top:120px;width:106px;height:36px;border:2px dashed #059669;border-radius:8px;background:#ecfdf5;display:flex;align-items:center;justify-content:center;font-size:11px;color:#047857;">设备槽</div>
+            <div style="position:absolute;left:512px;top:108px;width:94px;height:34px;border:2px dashed #ea580c;border-radius:8px;background:#fff7ed;display:flex;align-items:center;justify-content:center;font-size:11px;color:#c2410c;">设备槽</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 继续贴在 Mermaid 节点下方</h3>
+      <p>最符合你最初说的“方块下面空处”。但 seed 里的分支多，槽会挤压线条，也需要给 SVG 额外留白。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="node-list" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="height:390px;padding:16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;display:grid;grid-template-columns:1fr 250px;gap:14px;">
+        <div style="background:#f8fafc;border-radius:8px;padding:12px;overflow:hidden;">
+          <div style="font-size:12px;color:#475569;margin-bottom:10px;font-weight:700;">Mermaid 原图保持清爽</div>
+          <svg viewBox="0 0 420 320" style="width:100%;height:290px;display:block;font-family:ui-sans-serif,system-ui,sans-serif;">
+            <defs><marker id="seedArrowB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#64748b"></path></marker></defs>
+            <path d="M88 55 L180 88" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowB)"></path>
+            <path d="M88 124 L180 98" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowB)"></path>
+            <path d="M88 193 L180 108" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowB)"></path>
+            <path d="M88 262 L180 118" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowB)"></path>
+            <path d="M282 100 L342 100" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#seedArrowB)"></path>
+            <rect x="8" y="32" width="80" height="38" rx="6" fill="#60a5fa"></rect><text x="48" y="55" fill="#fff" text-anchor="middle" font-size="10" font-weight="700">温湿度</text>
+            <rect x="8" y="101" width="80" height="38" rx="6" fill="#60a5fa"></rect><text x="48" y="124" fill="#fff" text-anchor="middle" font-size="10" font-weight="700">CO₂</text>
+            <rect x="8" y="170" width="80" height="38" rx="6" fill="#60a5fa"></rect><text x="48" y="193" fill="#fff" text-anchor="middle" font-size="10" font-weight="700">烟雾</text>
+            <rect x="8" y="239" width="80" height="38" rx="6" fill="#60a5fa"></rect><text x="48" y="262" fill="#fff" text-anchor="middle" font-size="10" font-weight="700">火焰</text>
+            <rect x="180" y="76" width="102" height="48" rx="6" fill="#34d399"></rect><text x="231" y="104" fill="#fff" text-anchor="middle" font-size="12" font-weight="700">MQTT网关</text>
+            <rect x="342" y="80" width="76" height="38" rx="6" fill="#fb923c"></rect><text x="380" y="104" fill="#fff" text-anchor="middle" font-size="10" font-weight="700">云服务器</text>
+          </svg>
+        </div>
+        <div style="border-left:1px solid #e2e8f0;padding-left:14px;display:grid;gap:8px;align-content:start;">
+          <div style="font-size:13px;font-weight:800;color:#0f172a;">设备放置区</div>
+          <div style="font-size:11px;color:#64748b;">自动从 Mermaid 节点生成</div>
+          <div style="border:1px solid #bae6fd;border-radius:8px;padding:8px;background:#f0f9ff;"><div style="font-size:11px;font-weight:700;color:#0369a1;margin-bottom:6px;">温湿度传感器</div><div style="height:34px;border:2px dashed #0ea5e9;border-radius:8px;background:white;display:flex;align-items:center;justify-content:center;font-size:11px;color:#0284c7;">拖入设备</div></div>
+          <div style="border:1px solid #bae6fd;border-radius:8px;padding:8px;background:#f0f9ff;"><div style="font-size:11px;font-weight:700;color:#0369a1;margin-bottom:6px;">CO₂传感器</div><div style="height:34px;border:2px dashed #0ea5e9;border-radius:8px;background:white;display:flex;align-items:center;justify-content:center;font-size:11px;color:#0284c7;">拖入设备</div></div>
+          <div style="border:1px solid #fecaca;border-radius:8px;padding:8px;background:#fff5f5;"><div style="font-size:11px;font-weight:700;color:#b91c1c;margin-bottom:6px;">烟雾传感器</div><div style="height:34px;border:2px solid #e53e3e;border-radius:8px;background:white;display:flex;align-items:center;justify-content:center;"><span style="width:26px;height:26px;border-radius:7px;background:#e53e3e;display:block;"></span></div></div>
+          <div style="border:1px solid #bbf7d0;border-radius:8px;padding:8px;background:#f0fdf4;"><div style="font-size:11px;font-weight:700;color:#047857;margin-bottom:6px;">MQTT网关</div><div style="height:34px;border:2px dashed #34d399;border-radius:8px;background:white;display:flex;align-items:center;justify-content:center;font-size:11px;color:#059669;">拖入设备</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Mermaid 原图 + 右侧节点设备槽</h3>
+      <p>更适合 seed 的复杂图：流程图不被槽位打乱，右侧每个节点一个槽，后续仍能按节点检测对错。</p>
+    </div>
+  </div>
+</div>
