@@ -181,7 +181,16 @@ ${criteria.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}
       'INSERT INTO check_results (group_id, flowchart_history_id, area, results_json) VALUES (?, ?, ?, ?)'
     ).run(groupId, latestHistory?.id ?? null, area, JSON.stringify(results))
 
-    return { results }
+    const countRow = db.query(
+      'SELECT COUNT(*) as count FROM check_results WHERE group_id = ? AND area = ?'
+    ).get(groupId, area) as { count: number }
+    const checkCount = countRow.count
+
+    const referenceFlowchart = checkCount >= 3
+      ? (AREA_REFERENCE_FLOWCHARTS[area] ?? null)
+      : null
+
+    return { results, check_count: checkCount, reference_flowchart: referenceFlowchart }
   }, {
     body: t.Object({
       mermaidCode: t.String({ minLength: 1 }),
