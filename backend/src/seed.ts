@@ -1,10 +1,11 @@
-import { writeFileSync } from 'fs'
+import { writeFileSync, unlinkSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { db } from './db'
+import { db, reinitSchema } from './db'
 import { seedDevices, type SeedDevice } from './seedDevices'
 
 const groupNames = ['第一组', '第二组', '第三组', '第四组', '第五组', '第六组']
 const uploadsDir = process.env.UPLOADS_PATH ?? 'uploads'
+const stickersDir = join(uploadsDir, 'stickers')
 
 function escapeSvgText(text: string) {
   return text
@@ -21,22 +22,31 @@ function seedDeviceFilename(index: number) {
 function writeSeedDeviceImage(device: SeedDevice, filename: string) {
   const label = escapeSvgText(device.name.slice(0, 4))
   writeFileSync(
-    join(uploadsDir, 'stickers', filename),
+    join(stickersDir, filename),
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="24" fill="#f7fafc"/><circle cx="64" cy="46" r="24" fill="${device.theme_color}"/><rect x="28" y="78" width="72" height="22" rx="11" fill="${device.theme_color}"/><text x="64" y="93" text-anchor="middle" font-size="14" font-family="sans-serif" fill="white">${label}</text></svg>`
   )
 }
 
-export function runSeed() {
+export function clearAll() {
   const tables = db.query(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
   ).all() as { name: string }[]
 
   db.query('PRAGMA foreign_keys = OFF').run()
   for (const { name } of tables) {
-    db.query(`DELETE FROM "${name}"`).run()
+    db.query(`DROP TABLE IF EXISTS "${name}"`).run()
   }
-  db.query("DELETE FROM sqlite_sequence").run()
   db.query('PRAGMA foreign_keys = ON').run()
+
+  reinitSchema()
+
+  for (const file of readdirSync(stickersDir)) {
+    try { unlinkSync(join(stickersDir, file)) } catch {}
+  }
+}
+
+export function runSeed() {
+  clearAll()
 
   for (let i = 0; i < seedDevices.length; i++) {
     const device = seedDevices[i]

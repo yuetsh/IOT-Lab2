@@ -76,7 +76,7 @@ export default function AdminSettings() {
         />
         <ActionCard
           title="清空所有数据"
-          description="删除所有小组、消息、流程图、设备记录，保留表结构与设备文件"
+          description="删除数据库所有数据并清理设备图片文件"
           buttonLabel="清空数据"
           buttonColor="#e53e3e"
           onConfirm={async () => {

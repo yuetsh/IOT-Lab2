@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia'
 import { db } from '../db'
-import { runSeed } from '../seed'
+import { clearAll, runSeed } from '../seed'
 
 type CheckResult = { passed: boolean; comment: string }
 type CheckRun = { created_at: string; results: CheckResult[] }
@@ -148,15 +148,7 @@ export const adminRouter = new Elysia()
     return result
   })
   .post('/api/admin/clear', () => {
-    const tables = db.query(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-    ).all() as { name: string }[]
-    db.query('PRAGMA foreign_keys = OFF').run()
-    for (const { name } of tables) {
-      db.query(`DELETE FROM "${name}"`).run()
-    }
-    db.query("DELETE FROM sqlite_sequence").run()
-    db.query('PRAGMA foreign_keys = ON').run()
+    clearAll()
     return { ok: true }
   })
   .post('/api/admin/reset', () => {
