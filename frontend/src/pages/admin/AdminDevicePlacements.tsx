@@ -14,10 +14,25 @@ interface Placement {
   sticker_filename: string
 }
 
+interface CheckResultItem {
+  device_name: string
+  node_label: string
+  passed: boolean
+  comment: string
+}
+
+interface CheckResult {
+  passed_count: number
+  total_count: number
+  results: CheckResultItem[]
+  created_at: string
+}
+
 interface AreaData {
   mermaid_code: string | null
   placements: Placement[]
   submission_created_at: string | null
+  check_result: CheckResult | null
 }
 
 interface GroupData {
@@ -146,6 +161,41 @@ function AreaPanel({ areaData }: { areaData: AreaData }) {
               <span style={{ fontSize: 11, color: '#718096' }}>→ {p.node_label}</span>
             </div>
           ))}
+        </div>
+      )}
+      {areaData.check_result && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#718096', fontWeight: 600 }}>AI检测</span>
+            <span style={{
+              fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 10,
+              background: areaData.check_result.passed_count === areaData.check_result.total_count ? '#c6f6d5' : '#fed7d7',
+              color: areaData.check_result.passed_count === areaData.check_result.total_count ? '#276749' : '#c53030',
+            }}>
+              {areaData.check_result.passed_count} / {areaData.check_result.total_count} 通过
+            </span>
+            <span style={{ fontSize: 11, color: '#a0aec0' }}>
+              {fmt(areaData.check_result.created_at)}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {areaData.check_result.results.map((r, i) => (
+              <div key={i} style={{
+                display: 'flex', gap: 8, alignItems: 'flex-start',
+                padding: '7px 10px', borderRadius: 6,
+                background: r.passed ? '#f0fff4' : '#fff5f5',
+                border: `1px solid ${r.passed ? '#c6f6d5' : '#fed7d7'}`,
+              }}>
+                <span style={{ fontSize: 13, flexShrink: 0 }}>{r.passed ? '✓' : '✗'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#2d3748' }}>
+                    {r.device_name} → {r.node_label}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#718096', marginLeft: 6 }}>{r.comment}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
