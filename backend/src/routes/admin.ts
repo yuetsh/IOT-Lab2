@@ -148,16 +148,15 @@ export const adminRouter = new Elysia()
     return result
   })
   .post('/api/admin/clear', () => {
-    db.query('DELETE FROM check_results').run()
-    db.query('DELETE FROM flowchart_history').run()
-    db.query('DELETE FROM flowcharts').run()
-    db.query('DELETE FROM journal_placements').run()
-    db.query('DELETE FROM device_check_results').run()
-    db.query('DELETE FROM device_submissions').run()
-    db.query('DELETE FROM messages').run()
-    db.query('DELETE FROM groups').run()
-    db.query('DELETE FROM stickers').run()
-    db.query("DELETE FROM sqlite_sequence WHERE name IN ('groups','messages','flowcharts','flowchart_history','check_results','journal_placements','device_submissions','device_check_results','stickers')").run()
+    const tables = db.query(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).all() as { name: string }[]
+    db.query('PRAGMA foreign_keys = OFF').run()
+    for (const { name } of tables) {
+      db.query(`DELETE FROM "${name}"`).run()
+    }
+    db.query("DELETE FROM sqlite_sequence").run()
+    db.query('PRAGMA foreign_keys = ON').run()
     return { ok: true }
   })
   .post('/api/admin/reset', () => {
