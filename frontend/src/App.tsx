@@ -8,6 +8,7 @@ import AdminStickers from './pages/admin/AdminStickers'
 import AdminGroupDetail from './pages/admin/AdminGroupDetail'
 import AdminSettings from './pages/admin/AdminSettings'
 import AdminDevicePlacements from './pages/admin/AdminDevicePlacements'
+import AdminDataView from './pages/admin/AdminDataView'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="groups/:id" element={<AdminGroupDetail />} />
           <Route path="device-placements" element={<AdminDevicePlacements />} />
           <Route path="settings" element={<AdminSettings />} />
+          <Route path="data" element={<AdminDataView />} />
         </Route>
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

@@ -192,7 +192,7 @@ export default function GroupWorkspace() {
                 fontWeight: tab === t ? 600 : 400
               }}
             >
-              {t === 'chat' ? '智能体' : '设备台'}
+              {t === 'chat' ? '功能设计' : '设备选型'}
             </button>
           ))}
         </div>

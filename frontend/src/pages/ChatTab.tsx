@@ -83,24 +83,9 @@ const AREA_BASE: Record<Area, string> = {
   '自助系统': '设计图书馆自助借还书终端系统',
 }
 
-function fnv1a(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619)
-  return h >>> 0
-}
-
-function getAreaStarter(area: Area, groupId: string): string {
+function getAreaStarter(area: Area): string {
   const features = AREA_FEATURES[area]
-  const numToDrop = features.length <= 3 ? 1 : 2
-  const dropSet = new Set(
-    features
-      .map((_, i) => ({ i, h: fnv1a(`${groupId}|${area}|${i}`) }))
-      .sort((a, b) => a.h - b.h)
-      .slice(0, numToDrop)
-      .map(x => x.i)
-  )
-  const selected = features.filter((_, i) => !dropSet.has(i))
-  return `${AREA_BASE[area]}，${selected.join('，')}`
+  return `${AREA_BASE[area]}，${features.join('，')}`
 }
 
 const AREA_CRITERIA: Partial<Record<Area, string[]>> = {
@@ -339,7 +324,7 @@ export default function ChatTab({
                   } else {
                     setSelectedArea(area)
                     setCheckResults(null)
-                    setInput(getAreaStarter(area, groupId))
+                    setInput(getAreaStarter(area))
                     onWorkspaceContextChange?.({ area, flowchartId: null })
                   }
                 }}

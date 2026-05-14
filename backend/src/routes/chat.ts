@@ -3,6 +3,7 @@ import { db } from '../db'
 import { buildDeepSeekMessages } from '../chatContext'
 import { shouldClearJournalPlacementsForFlowchartChange } from '../flowchartState'
 import { insertFlowchartHistory } from '../flowchartHistory'
+import { AREA_REFERENCE_FLOWCHARTS } from '../areaFlowcharts'
 
 const SYSTEM_PROMPT = `你是物联网系统功能设计师，专注于智慧图书馆系统设计。用中文回复。
 
@@ -80,6 +81,7 @@ export const chatRouter = new Elysia()
           systemPrompt: SYSTEM_PROMPT,
           area: area ?? null,
           latestMermaidCode: latestFlowchart?.mermaid_code ?? null,
+          referenceFlowchart: area ? (AREA_REFERENCE_FLOWCHARTS[area] ?? null) : null,
           history: history as { role: 'user' | 'assistant'; content: string }[],
           userMessage: message,
         }),

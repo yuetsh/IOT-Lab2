@@ -3,7 +3,7 @@ import { db } from '../db'
 
 export const groupsRouter = new Elysia({ prefix: '/api/groups' })
   .get('/', () => {
-    return db.query('SELECT * FROM groups ORDER BY name').all()
+    return db.query('SELECT * FROM groups ORDER BY id').all()
   })
   .post('/', ({ body }) => {
     const { name } = body

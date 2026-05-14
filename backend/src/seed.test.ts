@@ -7,18 +7,18 @@ import { seedDevices } from './seedDevices'
 
 describe('seed devices', () => {
   test('includes the full seeded sticker device list with installation metadata', () => {
-    expect(seedDevices).toHaveLength(29)
+    expect(seedDevices).toHaveLength(27)
     expect(seedDevices[0]).toEqual({
       name: '人体红外传感器',
-      description: '图书馆大门处',
+      description: '安装在大门两侧，检测人员靠近与离开',
       install_location: '大门区域',
       theme_color: '#3182ce',
     })
     expect(seedDevices[seedDevices.length - 1]).toEqual({
-      name: '移动互联终端',
-      description: '放置在自助区的位置',
-      install_location: '桌面上',
-      theme_color: '#d53f8c',
+      name: 'ADAM-4017模拟量采集器',
+      description: '安装在设备间操作箱内，采集温湿度、CO₂、空气质量等模拟传感器信号',
+      install_location: '设备间',
+      theme_color: '#4a5568',
     })
     expect(new Set(seedDevices.map(device => device.theme_color)).size).toBeGreaterThan(5)
   })
