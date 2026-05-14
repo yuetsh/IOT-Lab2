@@ -196,8 +196,8 @@ export function runMockData() {
   const groups = db.query('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[]
   if (groups.length === 0) throw new Error('请先加载种子数据')
 
-  const stickers = db.query('SELECT id, name FROM stickers').all() as { id: number; name: string }[]
-  const stickerByName = new Map(stickers.map(s => [s.name, s.id]))
+  const stickers = db.query('SELECT id, name, filename FROM stickers').all() as { id: number; name: string; filename: string }[]
+  const stickerByName = new Map(stickers.map(s => [s.name, { id: s.id, filename: s.filename }]))
 
   const BASE_TIME = Date.now() - 3 * 60 * 60 * 1000 // 3小时前开始
 
@@ -242,14 +242,8 @@ export function runMockData() {
       ).run(group.id, h2.id, area, JSON.stringify(check2Results), formatTs(new Date(baseTs + 17 * 60 * 1000)))
 
       // 当前流程图状态（upsert）
-      const existing = db.query('SELECT group_id FROM flowcharts WHERE group_id = ? AND area = ?').get(group.id, area)
-      if (existing) {
-        db.query('UPDATE flowcharts SET mermaid_code = ?, updated_at = ? WHERE group_id = ? AND area = ?')
-          .run(finalCode, formatTs(new Date(baseTs + 15 * 60 * 1000)), group.id, area)
-      } else {
-        db.query('INSERT INTO flowcharts (group_id, area, mermaid_code, updated_at) VALUES (?, ?, ?, ?)')
-          .run(group.id, area, finalCode, formatTs(new Date(baseTs + 15 * 60 * 1000)))
-      }
+      db.query('INSERT OR REPLACE INTO flowcharts (group_id, area, mermaid_code, updated_at) VALUES (?, ?, ?, ?)')
+        .run(group.id, area, finalCode, formatTs(new Date(baseTs + 15 * 60 * 1000)))
 
       // 聊天消息
       const msgs = AREA_MESSAGES[area]
@@ -263,15 +257,14 @@ export function runMockData() {
       const placements = nodeMappings.flatMap(({ node, devices }, nodeIdx) =>
         devices
           .map((deviceName, devIdx) => {
-            const stickerId = stickerByName.get(deviceName) ?? null
-            if (!stickerId) return null
-            const stickerIdx = stickers.findIndex(s => s.name === deviceName)
+            const stickerEntry = stickerByName.get(deviceName) ?? null
+            if (!stickerEntry) return null
             return {
-              sticker_id: stickerId,
+              sticker_id: stickerEntry.id,
               node_id: node,
               node_label: node,
               sticker_name: deviceName,
-              sticker_filename: `seed-device-${String(stickerIdx + 1).padStart(2, '0')}.svg`,
+              sticker_filename: stickerEntry.filename,
               x: 100 + nodeIdx * 120 + devIdx * 20,
               y: 100 + nodeIdx * 80,
             }
@@ -305,11 +298,11 @@ export function runMockData() {
       for (let ni = 0; ni < nodeMappings.length; ni++) {
         const { node, devices } = nodeMappings[ni]
         for (let di = 0; di < devices.length; di++) {
-          const stickerId = stickerByName.get(devices[di])
-          if (!stickerId) continue
+          const stickerEntry = stickerByName.get(devices[di])
+          if (!stickerEntry) continue
           db.query(
             'INSERT INTO journal_placements (group_id, area, sticker_id, node_id, node_label, x, y, scale) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-          ).run(group.id, area, stickerId, node, node, 80 + ni * 130 + di * 25, 80 + ni * 90, 1.0)
+          ).run(group.id, area, stickerEntry.id, node, node, 80 + ni * 130 + di * 25, 80 + ni * 90, 1.0)
         }
       }
     }
