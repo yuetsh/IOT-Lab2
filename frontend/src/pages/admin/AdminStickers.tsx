@@ -81,19 +81,19 @@ export default function AdminStickers() {
   }
 
   async function del(id: number) {
-    if (!confirm('确认删除该贴纸？')) return
+    if (!confirm('确认删除该设备？')) return
     await fetch(`/api/stickers/${id}`, { method: 'DELETE' })
     load()
   }
 
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>贴纸管理</h2>
+      <h2 style={{ marginTop: 0 }}>设备管理</h2>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           value={name}
           onChange={e => setName(e.target.value)}
-          placeholder="贴纸名称（如：树莓派）"
+          placeholder="设备名称（如：树莓派）"
           style={{ padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 14 }}
         />
         <input
@@ -126,7 +126,7 @@ export default function AdminStickers() {
           onClick={upload}
           disabled={uploading || !name.trim() || !file}
           style={{ padding: '8px 20px', background: uploading ? '#a0aec0' : '#48bb78', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}
-        >上传贴纸</button>
+        >上传设备</button>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         {stickers.map(s => (
@@ -201,7 +201,7 @@ export default function AdminStickers() {
             )}
           </div>
         ))}
-        {stickers.length === 0 && <p style={{ color: '#a0aec0' }}>暂无贴纸，请上传</p>}
+        {stickers.length === 0 && <p style={{ color: '#a0aec0' }}>暂无设备，请上传</p>}
       </div>
     </div>
   )

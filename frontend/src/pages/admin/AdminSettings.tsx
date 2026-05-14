@@ -66,7 +66,7 @@ export default function AdminSettings() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <ActionCard
           title="加载示例数据"
-          description="清空现有数据并写入 seed 数据（6 个小组和设备贴纸）"
+          description="清空现有数据并写入 seed 数据"
           buttonLabel="加载 Seed"
           buttonColor="#3182ce"
           onConfirm={async () => {
@@ -76,7 +76,7 @@ export default function AdminSettings() {
         />
         <ActionCard
           title="清空所有数据"
-          description="删除所有小组、消息、流程图、日记贴纸记录，保留表结构与贴纸文件"
+          description="删除所有小组、消息、流程图、设备记录，保留表结构与设备文件"
           buttonLabel="清空数据"
           buttonColor="#e53e3e"
           onConfirm={async () => {

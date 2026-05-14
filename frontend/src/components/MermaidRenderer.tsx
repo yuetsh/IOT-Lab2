@@ -7,7 +7,7 @@ mermaid.initialize({
   theme: 'base',
   themeVariables: {
     primaryColor: '#6366f1',
-    primaryTextColor: '#ffffff',
+    primaryTextColor: '#1e293b',
     primaryBorderColor: '#4f46e5',
     lineColor: '#64748b',
     secondaryColor: '#06b6d4',
@@ -18,7 +18,7 @@ mermaid.initialize({
     clusterBkg: '#f1f5f9',
     clusterBorder: '#cbd5e1',
     titleColor: '#1e293b',
-    edgeLabelBackground: '#1e293b',
+    edgeLabelBackground: '#fef9c3',
     fontFamily: 'ui-sans-serif, system-ui, sans-serif',
   }
 })

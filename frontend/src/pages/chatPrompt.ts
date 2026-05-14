@@ -24,15 +24,7 @@ export function buildFixPrompt({ area, criteria, results }: BuildFixPromptInput)
     .filter(item => !item.result?.passed)
 
   if (failedItems.length === 0) {
-    return [
-      `当前「${promptArea}」流程图已通过全部检查。`,
-      '请在保持现有功能不变的基础上，优化施工方案表述和 Mermaid 节点命名，使流程更清晰、更工程化。',
-      '',
-      '要求：',
-      '- 保留已有已通过功能',
-      '- 不添加未提及的新功能',
-      '- 输出完整 Mermaid 流程图',
-    ].join('\n')
+    return `当前「${promptArea}」流程图已通过全部检查，请优化节点描述和步骤表达，使流程更清晰工程化。`
   }
 
   const failedLines = failedItems.map((item, index) => {
@@ -43,13 +35,7 @@ export function buildFixPrompt({ area, criteria, results }: BuildFixPromptInput)
   })
 
   return [
-    `请基于当前「${promptArea}」流程图进行修改，只补充以下未通过的功能点：`,
+    `请基于当前「${promptArea}」流程图进行修改，补充以下未通过的功能点：`,
     ...failedLines,
-    '',
-    '要求：',
-    '- 保留已有已通过功能',
-    '- 不添加未提及的新功能',
-    '- 每条新增或修改的功能都体现：感知设备 → 判定逻辑 → 执行动作 → 展示/联动效果',
-    '- 输出完整 Mermaid 流程图',
   ].join('\n')
 }
