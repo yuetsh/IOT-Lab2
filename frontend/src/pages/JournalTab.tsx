@@ -34,8 +34,7 @@ interface Props {
   areasWithFlowcharts?: string[]
   onAreaChange?: (area: string) => void
   onSave: (placements: Omit<Placement, 'id'>[]) => void
-  onSubmit?: (placements: Omit<Placement, 'id'>[]) => Promise<void>
-  onAiCheck?: () => Promise<void>
+  onAiCheck?: (placements: Omit<Placement, 'id'>[]) => Promise<void>
   aiCheckResults?: AiCheckResult[] | null
   aiCheckArea?: string | null
 }
@@ -137,7 +136,7 @@ function CheckResultModal({ results, area, onClose }: { results: AiCheckResult[]
   )
 }
 
-export default function JournalTab({ mermaidCode, stickers, placements: initPlacements, area, areasWithFlowcharts, onAreaChange, onSave, onSubmit, onAiCheck, aiCheckResults, aiCheckArea }: Props) {
+export default function JournalTab({ mermaidCode, stickers, placements: initPlacements, area, areasWithFlowcharts, onAreaChange, onSave, onAiCheck, aiCheckResults, aiCheckArea }: Props) {
   const [placements, setPlacements] = useState<Placement[]>(initPlacements.filter(p => p.node_id))
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>([])
   const [svgElement, setSvgElement] = useState<SVGSVGElement | null>(null)
@@ -145,7 +144,6 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
   const [dragSticker, setDragSticker] = useState<Sticker | null>(null)
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
-  const [submitState, setSubmitState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [checkState, setCheckState] = useState<'idle' | 'checking'>('idle')
   const [modalOpen, setModalOpen] = useState(false)
   const deviceTargetNodes = useMemo(() => getDeviceTargetNodes(area, flowNodes), [area, flowNodes])
@@ -161,7 +159,6 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
   const flowNodesRef = useRef<FlowNode[]>([])
   const onSaveRef = useRef(onSave)
   const placementsRef = useRef<Placement[]>(placements)
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   flowNodesRef.current = flowNodes
@@ -211,9 +208,9 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
     toastTimerRef.current = setTimeout(() => setToastMsg(null), 2200)
   }
 
-  function removePlacement(nodeId: string) {
+  function removePlacement(nodeId: string, stickerId: number) {
     setPlacements(prev => {
-      const next = prev.filter(p => !p.node_id || normalizeMermaidNodeId(p.node_id) !== nodeId)
+      const next = prev.filter(p => !(p.node_id && normalizeMermaidNodeId(p.node_id) === nodeId && p.sticker_id === stickerId))
       onSaveRef.current(getPlacementsForFlowNodes(flowNodesRef.current, next))
       return next
     })
@@ -257,7 +254,8 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
       if (!nodeId || !s || !deviceTargetNodeIds.has(nodeId)) return
       const nodeLabel = flowNodesRef.current.find(n => n.id === nodeId)?.label ?? nodeId
       const currentPlacements = placementsRef.current
-      const wasReplaced = currentPlacements.some(p => p.node_id && normalizeMermaidNodeId(p.node_id) === nodeId)
+      const alreadyExists = currentPlacements.some(p => p.node_id && normalizeMermaidNodeId(p.node_id) === nodeId && p.sticker_id === s.id)
+      if (alreadyExists) { showToast(`「${s.name}」已在该节点`); return }
       const next = upsertNodePlacement(currentPlacements, {
         sticker_id: s.id,
         node_id: nodeId,
@@ -268,7 +266,7 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
       })
       setPlacements(next)
       onSaveRef.current(getPlacementsForFlowNodes(flowNodesRef.current, next))
-      showToast(wasReplaced ? `「${s.name}」已替换` : `「${s.name}」已指派到「${nodeLabel}」`)
+      showToast(`「${s.name}」已指派到「${nodeLabel}」`)
     }
 
     window.addEventListener('pointermove', onMove)
@@ -365,7 +363,7 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
 
           {/* Node overlays */}
           {overlays.map(overlay => {
-            const placement = placements.find(p => p.node_id && normalizeMermaidNodeId(p.node_id) === overlay.nodeId)
+            const nodePlacements = placements.filter(p => p.node_id && normalizeMermaidNodeId(p.node_id) === overlay.nodeId)
             const isTarget = dragOverNodeId === overlay.nodeId
             return (
               <div
@@ -379,12 +377,12 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
                   background: isTarget ? 'rgba(66,153,225,0.12)' : 'transparent',
                   boxShadow: isTarget ? '0 0 0 3px rgba(66,153,225,0.2)' : 'none',
                   transition: 'border-color 0.12s, background 0.12s',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexWrap: 'wrap',
                   pointerEvents: 'auto',
                 }}
               >
-                {placement && (
-                  <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                {nodePlacements.map((placement, pi) => (
+                  <div key={pi} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                     <img
                       src={stickerImageSrc({ id: placement.sticker_id, filename: placement.sticker_filename })}
                       alt={placement.sticker_name}
@@ -399,7 +397,7 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
                     </span>
                     <button
                       onPointerDown={e => e.stopPropagation()}
-                      onClick={() => removePlacement(overlay.nodeId)}
+                      onClick={() => removePlacement(overlay.nodeId, placement.sticker_id)}
                       style={{
                         position: 'absolute', top: -8, right: -10,
                         width: 18, height: 18, borderRadius: '50%',
@@ -409,8 +407,8 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
                       }}
                     >×</button>
                   </div>
-                )}
-                {isTarget && !placement && (
+                ))}
+                {isTarget && nodePlacements.length === 0 && (
                   <span style={{ fontSize: 10, color: '#2b6cb0', fontWeight: 700, pointerEvents: 'none' }}>放这里</span>
                 )}
               </div>
@@ -443,35 +441,13 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
           <p style={{ margin: 0, fontSize: 11, color: '#718096' }}>
             已指派 <span style={{ color: '#38a169', fontWeight: 600 }}>{assignedCount}</span> 个节点
           </p>
-          {onSubmit && (
-            <button
-              disabled={submitState === 'saving' || flowPlacements.length === 0}
-              onClick={async () => {
-                if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-                setSubmitState('saving')
-                await onSubmit(flowPlacements)
-                setSubmitState('saved')
-                savedTimerRef.current = setTimeout(() => setSubmitState('idle'), 2500)
-              }}
-              style={{
-                padding: '10px 0', borderRadius: 8, border: 'none',
-                cursor: flowPlacements.length === 0 ? 'default' : 'pointer',
-                fontSize: 14, fontWeight: 600,
-                background: submitState === 'saved' ? '#c6f6d5' : flowPlacements.length === 0 ? '#edf2f7' : '#4299e1',
-                color: submitState === 'saved' ? '#276749' : flowPlacements.length === 0 ? '#a0aec0' : '#fff',
-                transition: 'background 0.2s, color 0.2s',
-              }}
-            >
-              {submitState === 'saving' ? '保存中…' : submitState === 'saved' ? '已保存 ✓' : '保存设备方案'}
-            </button>
-          )}
           {onAiCheck && (
             <button
-              disabled={checkState === 'checking'}
+              disabled={checkState === 'checking' || flowPlacements.length === 0}
               onClick={async () => {
                 setCheckState('checking')
                 try {
-                  await onAiCheck()
+                  await onAiCheck(flowPlacements)
                   setCheckState('idle')
                   setModalOpen(true)
                 } catch {
@@ -481,10 +457,10 @@ export default function JournalTab({ mermaidCode, stickers, placements: initPlac
               }}
               style={{
                 padding: '10px 0', borderRadius: 8, border: 'none',
-                cursor: checkState === 'checking' ? 'default' : 'pointer',
+                cursor: (checkState === 'checking' || flowPlacements.length === 0) ? 'default' : 'pointer',
                 fontSize: 14, fontWeight: 600,
-                background: checkState === 'checking' ? '#edf2f7' : '#805ad5',
-                color: checkState === 'checking' ? '#a0aec0' : '#fff',
+                background: checkState === 'checking' || flowPlacements.length === 0 ? '#edf2f7' : '#805ad5',
+                color: checkState === 'checking' || flowPlacements.length === 0 ? '#a0aec0' : '#fff',
                 transition: 'background 0.2s',
               }}
             >

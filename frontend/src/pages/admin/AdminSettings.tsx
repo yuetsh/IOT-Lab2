@@ -65,9 +65,9 @@ export default function AdminSettings() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <ActionCard
-          title="加载示例数据"
-          description="清空现有数据并写入 seed 数据"
-          buttonLabel="加载 Seed"
+          title="加载种子数据"
+          description="清空现有数据并写入种子数据"
+          buttonLabel="加载种子"
           buttonColor="#3182ce"
           onConfirm={async () => {
             const res = await fetch('/api/admin/reset', { method: 'POST' })

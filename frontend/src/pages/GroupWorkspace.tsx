@@ -44,7 +44,6 @@ export default function GroupWorkspace() {
   const [placements, setPlacements] = useState<Placement[]>([])
   const [areasWithFlowcharts, setAreasWithFlowcharts] = useState<string[]>([])
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContext>(routeContext)
-  const [latestSubmissionId, setLatestSubmissionId] = useState<number | null>(null)
   const [aiCheckResults, setAiCheckResults] = useState<AiCheckResult[] | null>(null)
   const lastNonEmptyMermaidCodeRef = useRef<string | null>(null)
   const mermaidCodeRef = useRef<string | null>(null)
@@ -115,14 +114,14 @@ export default function GroupWorkspace() {
     })
   }, [id, routeArea])
 
-  const submitDeviceTable = useCallback(async (next: Omit<Placement, 'id'>[]) => {
+  const handleAiCheck = useCallback(async (currentPlacements: Omit<Placement, 'id'>[]) => {
     if (!id) return
-    const res = await fetch(`/api/groups/${id}/device-submissions`, {
+    const saveRes = await fetch(`/api/groups/${id}/device-submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         area: routeArea,
-        placements: next
+        placements: currentPlacements
           .filter(p => p.node_id && p.node_label)
           .map(p => ({
             sticker_id: p.sticker_id,
@@ -134,22 +133,16 @@ export default function GroupWorkspace() {
         mermaid_code: mermaidCodeRef.current,
       })
     })
-    const data = await res.json() as { ok: boolean; submission_id: number }
-    setLatestSubmissionId(data.submission_id)
-    setAiCheckResults(null)
-  }, [id, routeArea])
-
-  const handleAiCheck = useCallback(async () => {
-    if (!id || latestSubmissionId == null) return
-    const res = await fetch(`/api/groups/${id}/device-check`, {
+    const { submission_id } = await saveRes.json() as { ok: boolean; submission_id: number }
+    const checkRes = await fetch(`/api/groups/${id}/device-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ submission_id: latestSubmissionId }),
+      body: JSON.stringify({ submission_id }),
     })
-    if (!res.ok) throw new Error('AI 检测请求失败')
-    const data = await res.json() as { results: AiCheckResult[] }
+    if (!checkRes.ok) throw new Error('AI 检测请求失败')
+    const data = await checkRes.json() as { results: AiCheckResult[] }
     setAiCheckResults(data.results)
-  }, [id, latestSubmissionId])
+  }, [id, routeArea])
 
   const handleJournalAreaChange = useCallback((area: string) => {
     if (!id || !isGroupWorkspaceTab(tab)) return
@@ -221,8 +214,7 @@ export default function GroupWorkspace() {
             areasWithFlowcharts={areasWithFlowcharts}
             onAreaChange={handleJournalAreaChange}
             onSave={next => { setPlacements(next as Placement[]); savePlacements(next) }}
-            onSubmit={submitDeviceTable}
-            onAiCheck={latestSubmissionId != null ? handleAiCheck : undefined}
+            onAiCheck={handleAiCheck}
             aiCheckResults={aiCheckResults}
             aiCheckArea={routeArea}
           />

@@ -9,6 +9,7 @@ import AdminGroupDetail from './pages/admin/AdminGroupDetail'
 import AdminSettings from './pages/admin/AdminSettings'
 import AdminDevicePlacements from './pages/admin/AdminDevicePlacements'
 import AdminDataView from './pages/admin/AdminDataView'
+import AdminSummary from './pages/admin/AdminSummary'
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="device-placements" element={<AdminDevicePlacements />} />
           <Route path="settings" element={<AdminSettings />} />
           <Route path="data" element={<AdminDataView />} />
+          <Route path="summary" element={<AdminSummary />} />
         </Route>
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

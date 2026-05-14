@@ -77,7 +77,7 @@ export const adminRouter = new Elysia()
     type Placement = { sticker_id: number; node_id: string; node_label: string; sticker_name: string; sticker_filename: string }
     type CheckResultItem = { device_name: string; node_label: string; passed: boolean; comment: string }
     type CheckResult = { passed_count: number; total_count: number; results: CheckResultItem[]; created_at: string }
-    type AreaData = { mermaid_code: string | null; placements: Placement[]; submission_created_at: string | null; check_result: CheckResult | null }
+    type AreaData = { mermaid_code: string | null; placements: Placement[]; submission_created_at: string | null; check_result: CheckResult | null; check_results: CheckResult[]; check_count: number }
 
     const result = []
     for (const g of groups) {
@@ -108,26 +108,27 @@ export const adminRouter = new Elysia()
         const area = sub.area ?? codeToArea.get(sub.mermaid_code)
         if (!area || areaResult[area]) continue
 
-        const checkRow = db.query(
-          'SELECT results_json, created_at FROM device_check_results WHERE submission_id = ? ORDER BY created_at DESC LIMIT 1'
-        ).get(sub.id) as { results_json: string; created_at: string } | null
+        // 聚合该组该区域同一流程图所有 submissions 的检测记录
+        const checkRows = db.query(`
+          SELECT dcr.results_json, dcr.created_at
+          FROM device_check_results dcr
+          JOIN device_submissions ds ON dcr.submission_id = ds.id
+          WHERE ds.group_id = ? AND ds.mermaid_code = ?
+          ORDER BY dcr.created_at DESC
+        `).all(g.id, sub.mermaid_code) as { results_json: string; created_at: string }[]
 
-        let check_result: CheckResult | null = null
-        if (checkRow) {
-          const results = JSON.parse(checkRow.results_json) as CheckResultItem[]
-          check_result = {
-            passed_count: results.filter(r => r.passed).length,
-            total_count: results.length,
-            results,
-            created_at: checkRow.created_at,
-          }
-        }
+        const check_results: CheckResult[] = checkRows.map(row => {
+          const results = JSON.parse(row.results_json) as CheckResultItem[]
+          return { passed_count: results.filter(r => r.passed).length, total_count: results.length, results, created_at: row.created_at }
+        })
 
         areaResult[area] = {
           mermaid_code: sub.mermaid_code,
           placements: JSON.parse(sub.placements_json) as Placement[],
           submission_created_at: sub.created_at,
-          check_result,
+          check_result: check_results[0] ?? null,
+          check_results,
+          check_count: check_results.length,
         }
       }
 
@@ -139,6 +140,8 @@ export const adminRouter = new Elysia()
             placements: [],
             submission_created_at: null,
             check_result: null,
+            check_results: [],
+            check_count: 0,
           }
         }
       }
@@ -146,6 +149,170 @@ export const adminRouter = new Elysia()
       result.push({ group_id: g.id, group_name: g.name, areas: areaResult })
     }
     return result
+  })
+  .get('/api/admin/summary', () => {
+    const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
+    const groups = db.query('SELECT id, name, created_at FROM groups ORDER BY name').all() as { id: number; name: string; created_at: string }[]
+
+    const groupSummaries = groups.map(g => {
+      const messageCount = (db.query(
+        'SELECT COUNT(*) as cnt FROM messages WHERE group_id = ?'
+      ).get(g.id) as { cnt: number }).cnt
+
+      const userMessageCount = (db.query(
+        "SELECT COUNT(*) as cnt FROM messages WHERE group_id = ? AND role = 'user'"
+      ).get(g.id) as { cnt: number }).cnt
+
+      const areaSummaries: Record<string, {
+        flowchart_count: number
+        latest_check_passed: number
+        latest_check_total: number
+        has_device_submission: boolean
+        device_check_passed: number
+        device_check_total: number
+      }> = {}
+
+      for (const area of AREAS) {
+        const flowchartCount = (db.query(
+          'SELECT COUNT(*) as cnt FROM flowchart_history WHERE group_id = ? AND area = ?'
+        ).get(g.id, area) as { cnt: number }).cnt
+
+        const latestHistory = db.query(
+          'SELECT id FROM flowchart_history WHERE group_id = ? AND area = ? ORDER BY created_at DESC LIMIT 1'
+        ).get(g.id, area) as { id: number } | null
+
+        let latestCheckPassed = 0
+        let latestCheckTotal = 0
+        if (latestHistory) {
+          const checkRow = db.query(
+            'SELECT results_json FROM check_results WHERE group_id = ? AND flowchart_history_id = ? ORDER BY created_at DESC LIMIT 1'
+          ).get(g.id, latestHistory.id) as { results_json: string } | null
+          if (checkRow) {
+            const results = JSON.parse(checkRow.results_json) as { passed: boolean }[]
+            latestCheckTotal = results.length
+            latestCheckPassed = results.filter(r => r.passed).length
+          }
+        }
+
+        const deviceSub = db.query(
+          'SELECT id FROM device_submissions WHERE group_id = ? AND area = ? ORDER BY created_at DESC LIMIT 1'
+        ).get(g.id, area) as { id: number } | null
+
+        let deviceCheckPassed = 0
+        let deviceCheckTotal = 0
+        if (deviceSub) {
+          const dcRow = db.query(
+            'SELECT results_json FROM device_check_results WHERE submission_id = ? ORDER BY created_at DESC LIMIT 1'
+          ).get(deviceSub.id) as { results_json: string } | null
+          if (dcRow) {
+            const results = JSON.parse(dcRow.results_json) as { passed: boolean }[]
+            deviceCheckTotal = results.length
+            deviceCheckPassed = results.filter(r => r.passed).length
+          }
+        }
+
+        areaSummaries[area] = {
+          flowchart_count: flowchartCount,
+          latest_check_passed: latestCheckPassed,
+          latest_check_total: latestCheckTotal,
+          has_device_submission: !!deviceSub,
+          device_check_passed: deviceCheckPassed,
+          device_check_total: deviceCheckTotal,
+        }
+      }
+
+      const totalFlowcharts = AREAS.reduce((s, a) => s + areaSummaries[a].flowchart_count, 0)
+      const completedAreas = AREAS.filter(a => areaSummaries[a].flowchart_count > 0).length
+      const deviceCompletedAreas = AREAS.filter(a => areaSummaries[a].has_device_submission).length
+
+      return {
+        id: g.id,
+        name: g.name,
+        created_at: g.created_at,
+        message_count: messageCount,
+        user_message_count: userMessageCount,
+        total_flowcharts: totalFlowcharts,
+        completed_areas: completedAreas,
+        device_completed_areas: deviceCompletedAreas,
+        areas: areaSummaries,
+      }
+    })
+
+    const totalGroups = groups.length
+    const avgMessages = totalGroups > 0 ? Math.round(groupSummaries.reduce((s, g) => s + g.message_count, 0) / totalGroups) : 0
+    const avgFlowcharts = totalGroups > 0 ? Math.round(groupSummaries.reduce((s, g) => s + g.total_flowcharts, 0) / totalGroups * 10) / 10 : 0
+    const allAreasComplete = groupSummaries.filter(g => g.completed_areas === 6).length
+    const allDeviceComplete = groupSummaries.filter(g => g.device_completed_areas === 6).length
+
+    return {
+      overview: {
+        total_groups: totalGroups,
+        avg_messages: avgMessages,
+        avg_flowcharts: avgFlowcharts,
+        all_areas_complete: allAreasComplete,
+        all_device_complete: allDeviceComplete,
+      },
+      groups: groupSummaries,
+    }
+  })
+  .get('/api/admin/progress', () => {
+    const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
+    const groups = db.query('SELECT id, name, created_at FROM groups ORDER BY name').all() as { id: number; name: string; created_at: string }[]
+
+    // 1. 各次检测通过率趋势（每组按时间排列的所有检测记录）
+    const checkTrend = groups.map(g => {
+      const rows = db.query(`
+        SELECT cr.results_json, cr.created_at, fh.area
+        FROM check_results cr
+        JOIN flowchart_history fh ON cr.flowchart_history_id = fh.id
+        WHERE cr.group_id = ?
+        ORDER BY cr.created_at ASC
+      `).all(g.id) as { results_json: string; created_at: string; area: string }[]
+
+      const checks = rows.map((r, i) => {
+        const results = JSON.parse(r.results_json) as { passed: boolean }[]
+        const passed = results.filter(x => x.passed).length
+        return { attempt: i + 1, passed, total: results.length, rate: results.length > 0 ? Math.round(passed / results.length * 100) : 0, area: r.area, created_at: r.created_at }
+      })
+      return { group_id: g.id, group_name: g.name, checks }
+    })
+
+    // 2. 各区域平均修改轮次（生成了多少次流程图才通过检测）
+    const revisionRounds = AREAS.map(area => {
+      const rows = db.query(`
+        SELECT fh.group_id, COUNT(*) as rounds,
+               MAX(CASE WHEN cr.id IS NOT NULL THEN 1 ELSE 0 END) as has_check
+        FROM flowchart_history fh
+        LEFT JOIN check_results cr ON cr.flowchart_history_id = fh.id AND cr.group_id = fh.group_id
+        WHERE fh.area = ?
+        GROUP BY fh.group_id
+      `).all(area) as { group_id: number; rounds: number; has_check: number }[]
+
+      const withCheck = rows.filter(r => r.has_check)
+      const avgRounds = withCheck.length > 0
+        ? Math.round(withCheck.reduce((s, r) => s + r.rounds, 0) / withCheck.length * 10) / 10
+        : 0
+      return { area, avg_rounds: avgRounds, groups_count: rows.length }
+    })
+
+    // 3. 区域完成顺序（每组各区域第几个被攻克，null=未开始）
+    const parseTs = (s: string) => new Date(s.replace(' ', 'T')).getTime()
+    const completionTimeline = groups.map(g => {
+      const areaTs: { area: string; ts: number }[] = []
+      for (const area of AREAS) {
+        const row = db.query(
+          'SELECT created_at FROM flowchart_history WHERE group_id = ? AND area = ? ORDER BY created_at ASC LIMIT 1'
+        ).get(g.id, area) as { created_at: string } | null
+        if (row) areaTs.push({ area, ts: parseTs(row.created_at) })
+      }
+      areaTs.sort((a, b) => a.ts - b.ts)
+      const areas: Record<string, number | null> = {}
+      for (const area of AREAS) areas[area] = null
+      areaTs.forEach((entry, i) => { areas[entry.area] = i + 1 })
+      return { group_id: g.id, group_name: g.name, areas }
+    })
+
+    return { checkTrend, revisionRounds, completionTimeline }
   })
   .post('/api/admin/clear', () => {
     clearAll()

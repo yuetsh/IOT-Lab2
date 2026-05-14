@@ -33,6 +33,8 @@ interface AreaData {
   placements: Placement[]
   submission_created_at: string | null
   check_result: CheckResult | null
+  check_results: CheckResult[]
+  check_count: number
 }
 
 interface GroupData {
@@ -122,79 +124,100 @@ function AreaPanel({ areaData }: { areaData: AreaData }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {areaData.submission_created_at && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, color: '#718096' }}>
-            设备方案保存于 {fmt(areaData.submission_created_at)}
-          </span>
-          <span style={{
-            fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 10,
-            background: '#c6f6d5', color: '#276749',
-          }}>
-            {areaData.placements.length} 个设备
-          </span>
-        </div>
-      )}
-
-      {areaData.mermaid_code ? (
-        <FlowchartWithDevices mermaidCode={areaData.mermaid_code} placements={areaData.placements} />
-      ) : (
-        <div style={{ padding: '24px', textAlign: 'center', color: '#a0aec0', fontSize: 13, background: '#fafafa', border: '1px solid #e2e8f0', borderRadius: 8 }}>
-          该区域暂无流程图
-        </div>
-      )}
-
-      {areaData.placements.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {areaData.placements.map((p, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '5px 10px', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff',
-            }}>
-              <img
-                src={stickerImageSrc({ id: p.sticker_id, filename: p.sticker_filename })}
-                alt={p.sticker_name}
-                style={{ width: 22, height: 22, objectFit: 'contain' }}
-              />
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#2d3748' }}>{p.sticker_name}</span>
-              <span style={{ fontSize: 11, color: '#718096' }}>→ {p.node_label}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {areaData.check_result && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      {/* 左：流程图 + 设备列表 */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {areaData.submission_created_at && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#718096', fontWeight: 600 }}>AI检测</span>
-            <span style={{
-              fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 10,
-              background: areaData.check_result.passed_count === areaData.check_result.total_count ? '#c6f6d5' : '#fed7d7',
-              color: areaData.check_result.passed_count === areaData.check_result.total_count ? '#276749' : '#c53030',
-            }}>
-              {areaData.check_result.passed_count} / {areaData.check_result.total_count} 通过
+            <span style={{ fontSize: 14, color: '#718096' }}>
+              设备方案保存于 {fmt(areaData.submission_created_at)}
             </span>
-            <span style={{ fontSize: 11, color: '#a0aec0' }}>
-              {fmt(areaData.check_result.created_at)}
+            <span style={{ fontSize: 13, fontWeight: 600, padding: '2px 10px', borderRadius: 10, background: '#c6f6d5', color: '#276749' }}>
+              {areaData.placements.length} 个设备
             </span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {areaData.check_result.results.map((r, i) => (
-              <div key={i} style={{
-                display: 'flex', gap: 8, alignItems: 'flex-start',
-                padding: '7px 10px', borderRadius: 6,
-                background: r.passed ? '#f0fff4' : '#fff5f5',
-                border: `1px solid ${r.passed ? '#c6f6d5' : '#fed7d7'}`,
-              }}>
-                <span style={{ fontSize: 13, flexShrink: 0 }}>{r.passed ? '✓' : '✗'}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#2d3748' }}>
-                    {r.device_name} → {r.node_label}
-                  </span>
-                  <span style={{ fontSize: 11, color: '#718096', marginLeft: 6 }}>{r.comment}</span>
-                </div>
+        )}
+        {areaData.mermaid_code ? (
+          <FlowchartWithDevices mermaidCode={areaData.mermaid_code} placements={areaData.placements} />
+        ) : (
+          <div style={{ padding: '24px', textAlign: 'center', color: '#a0aec0', fontSize: 15, background: '#fafafa', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+            该区域暂无流程图
+          </div>
+        )}
+        {areaData.placements.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {areaData.placements.map((p, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff' }}>
+                <img src={stickerImageSrc({ id: p.sticker_id, filename: p.sticker_filename })} alt={p.sticker_name} style={{ width: 26, height: 26, objectFit: 'contain' }} />
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#2d3748' }}>{p.sticker_name}</span>
+                <span style={{ fontSize: 13, color: '#718096' }}>→ {p.node_label}</span>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* 右：检测历史 */}
+      {areaData.check_count > 0 && (
+        <div style={{ width: 400, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, color: '#718096', fontWeight: 600 }}>AI检测历史</span>
+            <span style={{ fontSize: 13, fontWeight: 600, padding: '2px 10px', borderRadius: 10, background: '#ebf8ff', color: '#2b6cb0' }}>
+              共 {areaData.check_count} 次
+            </span>
+          </div>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ maxHeight: 560, overflowY: 'auto' }}>
+              {areaData.check_results.map((cr, ci) => {
+                const allPassed = cr.passed_count === cr.total_count
+                return (
+                  <div key={ci} style={{ background: '#fff', borderBottom: ci < areaData.check_results.length - 1 ? '2px solid #e2e8f0' : undefined }}>
+                    {/* 标题行 */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 16px',
+                      background: allPassed ? '#f0fff4' : '#fff5f5',
+                    }}>
+                      <span style={{
+                        width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: 700,
+                        background: allPassed ? '#276749' : '#c53030', color: '#fff',
+                      }}>{areaData.check_count - ci}</span>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: allPassed ? '#276749' : '#c53030' }}>
+                        {cr.passed_count} / {cr.total_count} 通过
+                      </span>
+                      <span style={{ fontSize: 13, color: '#a0aec0', marginLeft: 'auto' }}>{fmt(cr.created_at)}</span>
+                    </div>
+                    {/* 明细 */}
+                    <div>
+                      {cr.results.map((r, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '10px 16px',
+                          borderTop: '1px solid #e2e8f0',
+                          background: r.passed ? '#f0fff4' : '#fff5f5',
+                        }}>
+                          <span style={{
+                            width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 11, fontWeight: 700,
+                            background: r.passed ? '#c6f6d5' : '#fed7d7',
+                            color: r.passed ? '#276749' : '#c53030',
+                          }}>{r.passed ? '✓' : '✗'}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#2d3748' }}>
+                              {r.device_name} → {r.node_label}
+                            </div>
+                            <div style={{ fontSize: 13, color: '#718096', marginTop: 3, lineHeight: 1.5 }}>{r.comment}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -204,7 +227,7 @@ function AreaPanel({ areaData }: { areaData: AreaData }) {
 
 function GroupCard({ data }: { data: GroupData }) {
   const [activeArea, setActiveArea] = useState<Area>(AREAS[0])
-  const areaData = data.areas[activeArea] ?? { mermaid_code: null, placements: [], submission_created_at: null, check_result: null }
+  const areaData = data.areas[activeArea] ?? { mermaid_code: null, placements: [], submission_created_at: null, check_result: null, check_results: [], check_count: 0 }
   const submittedCount = AREAS.filter(a => (data.areas[a]?.placements.length ?? 0) > 0).length
 
   return (
