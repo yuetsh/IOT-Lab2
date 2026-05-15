@@ -65,17 +65,7 @@ export default function AdminSettings() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <ActionCard
-          title="加载种子数据"
-          description="清空现有数据并写入种子数据"
-          buttonLabel="加载种子"
-          buttonColor="#3182ce"
-          onConfirm={async () => {
-            const res = await fetch('/api/admin/reset', { method: 'POST' })
-            if (!res.ok) throw new Error()
-          }}
-        />
-        <ActionCard
-          title="清空所有数据"
+          title="1. 清空所有数据"
           description="删除数据库所有数据并清理设备图片文件"
           buttonLabel="清空数据"
           buttonColor="#e53e3e"
@@ -85,7 +75,17 @@ export default function AdminSettings() {
           }}
         />
         <ActionCard
-          title="生成模拟数据"
+          title="2. 加载种子数据"
+          description="清空现有数据并写入种子数据"
+          buttonLabel="加载种子"
+          buttonColor="#3182ce"
+          onConfirm={async () => {
+            const res = await fetch('/api/admin/reset', { method: 'POST' })
+            if (!res.ok) throw new Error()
+          }}
+        />
+        <ActionCard
+          title="3. 生成模拟数据"
           description="在种子数据基础上追加完整模拟交互记录（流程图、聊天、设备提交），需先加载种子数据"
           buttonLabel="生成模拟"
           buttonColor="#0d9488"
