@@ -85,7 +85,17 @@ export default function AdminSettings() {
           }}
         />
         <ActionCard
-          title="3. 生成模拟数据"
+          title="3. 新增评委体验"
+          description="创建“评委体验”小组，供评委试用；该小组不会参与后台数据统计"
+          buttonLabel="新增评委"
+          buttonColor="#805ad5"
+          onConfirm={async () => {
+            const res = await fetch('/api/admin/judge-group', { method: 'POST' })
+            if (!res.ok) throw new Error()
+          }}
+        />
+        <ActionCard
+          title="4. 生成模拟数据"
           description="在种子数据基础上追加完整模拟交互记录（流程图、聊天、设备提交），需先加载种子数据"
           buttonLabel="生成模拟"
           buttonColor="#0d9488"

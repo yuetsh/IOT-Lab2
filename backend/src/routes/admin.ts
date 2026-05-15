@@ -7,10 +7,13 @@ type CheckResult = { passed: boolean; comment: string }
 type CheckRun = { created_at: string; results: CheckResult[] }
 type HistoryEntry = { id: number; mermaid_code: string; created_at: string; user_prompt: string | null; check_runs: CheckRun[] }
 type GroupFull = { id: number; name: string; areas: Record<string, HistoryEntry[]>; device_submissions_count: number }
+type StatsGroup = { id: number; name: string; created_at: string }
+
+const statsGroupsSql = 'SELECT id, name, created_at FROM groups WHERE is_stats_excluded = 0 ORDER BY name'
 
 export const adminRouter = new Elysia()
   .get('/api/admin/overview', () => {
-    const groups = db.query('SELECT * FROM groups ORDER BY name').all() as { id: number; name: string }[]
+    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
     return groups.map(g => {
       const flowchart = db.query(
         'SELECT mermaid_code, area, updated_at FROM flowcharts WHERE group_id = ?'
@@ -30,7 +33,7 @@ export const adminRouter = new Elysia()
     })
   })
   .get('/api/admin/full', () => {
-    const groups = db.query('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[]
+    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
     const result: GroupFull[] = []
 
     for (const g of groups) {
@@ -74,7 +77,7 @@ export const adminRouter = new Elysia()
   })
   .get('/api/admin/device-placements', () => {
     const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
-    const groups = db.query('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[]
+    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
     type Placement = { sticker_id: number; node_id: string; node_label: string; sticker_name: string; sticker_filename: string }
     type CheckResultItem = { device_name: string; node_label: string; passed: boolean; comment: string }
     type CheckResult = { passed_count: number; total_count: number; results: CheckResultItem[]; created_at: string }
@@ -153,7 +156,7 @@ export const adminRouter = new Elysia()
   })
   .get('/api/admin/summary', () => {
     const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
-    const groups = db.query('SELECT id, name, created_at FROM groups ORDER BY name').all() as { id: number; name: string; created_at: string }[]
+    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
 
     const groupSummaries = groups.map(g => {
       const messageCount = (db.query(
@@ -263,7 +266,7 @@ export const adminRouter = new Elysia()
   })
   .get('/api/admin/progress', () => {
     const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
-    const groups = db.query('SELECT id, name, created_at FROM groups ORDER BY name').all() as { id: number; name: string; created_at: string }[]
+    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
 
     // 1. 各次检测通过率趋势（每组按时间排列的所有检测记录）
     const checkTrend = groups.map(g => {
@@ -291,7 +294,9 @@ export const adminRouter = new Elysia()
       const rows = db.query(`
         SELECT cr.group_id, MAX(cr.created_at) as last_passed_at
         FROM check_results cr
+        JOIN groups g ON g.id = cr.group_id
         WHERE cr.area = ?
+          AND g.is_stats_excluded = 0
           AND NOT EXISTS (
             SELECT 1 FROM json_each(cr.results_json) WHERE json_extract(value, '$.passed') = 0
           )
@@ -318,6 +323,17 @@ export const adminRouter = new Elysia()
     })
 
     return { checkTrend, completionTimeline }
+  })
+  .post('/api/admin/judge-group', () => {
+    db.query(`
+      INSERT INTO groups (name, is_stats_excluded)
+      VALUES (?, 1)
+      ON CONFLICT(name) DO UPDATE SET is_stats_excluded = 1
+    `).run('评委体验')
+
+    return db.query(
+      'SELECT id, name, is_stats_excluded, created_at FROM groups WHERE name = ?'
+    ).get('评委体验')
   })
   .post('/api/admin/clear', () => {
     clearAll()

@@ -3,13 +3,13 @@ import { db } from '../db'
 
 export const groupsRouter = new Elysia({ prefix: '/api/groups' })
   .get('/', () => {
-    return db.query('SELECT * FROM groups ORDER BY id').all()
+    return db.query('SELECT id, name, is_stats_excluded, created_at FROM groups ORDER BY id').all()
   })
   .post('/', ({ body }) => {
     const { name } = body
     try {
       db.query('INSERT INTO groups (name) VALUES (?)').run(name)
-      const group = db.query('SELECT * FROM groups WHERE name = ?').get(name)
+      const group = db.query('SELECT id, name, is_stats_excluded, created_at FROM groups WHERE name = ?').get(name)
       return group
     } catch {
       throw new Error('小组名已存在')

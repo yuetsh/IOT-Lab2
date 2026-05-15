@@ -14,9 +14,15 @@ export function reinitSchema() {
     CREATE TABLE IF NOT EXISTS groups (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
+      is_stats_excluded INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `).run()
+
+  const groupColumns = db.query('PRAGMA table_info(groups)').all() as { name: string }[]
+  if (!groupColumns.some(column => column.name === 'is_stats_excluded')) {
+    db.query('ALTER TABLE groups ADD COLUMN is_stats_excluded INTEGER NOT NULL DEFAULT 0').run()
+  }
 
   db.query(`
     CREATE TABLE IF NOT EXISTS messages (
