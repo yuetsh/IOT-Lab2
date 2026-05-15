@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { BarChart, Bar, Rectangle, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统'] as const
 const AREA_SHORT = ['大门', '身份', '安防', 'LED', '绿植', '自助'] as const
@@ -298,6 +299,135 @@ function GroupCardGrid({ groups, checkTrend }: { groups: GroupSummary[]; checkTr
   )
 }
 
+// ─── PassRateBarChart ─────────────────────────────────────────
+
+function PassRateBarChart({ data, tooltipLabel = '通过率' }: {
+  data: { name: string; rate: number; fill: string }[]
+  tooltipLabel?: string
+}) {
+  if (data.length === 0) return (
+    <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a0aec0', fontSize: 14 }}>
+      暂无数据
+    </div>
+  )
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(200, data.length * 44)}>
+      <BarChart data={data} layout="vertical" barCategoryGap="30%">
+        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+        <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 13, fill: '#64748b' }} />
+        <YAxis type="category" dataKey="name" tick={{ fontSize: 13, fill: '#64748b' }} width={60} />
+        <Tooltip
+          formatter={(v) => [`${v}%`, tooltipLabel]}
+          contentStyle={{ fontSize: 13, borderRadius: 8, border: '1px solid #e2e8f0' }}
+        />
+        <Bar
+          dataKey="rate"
+          shape={(props: any) => <Rectangle {...props} fill={props.fill} radius={[0, 4, 4, 0]} />}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+// ─── CoverageMatrix ───────────────────────────────────────────
+
+function CoverageMatrix({ groups }: { groups: GroupSummary[] }) {
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '72px repeat(6, 1fr)', gap: 4, marginBottom: 4 }}>
+        <div />
+        {AREA_SHORT.map((a, i) => (
+          <div key={i} style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textAlign: 'center' }}>{a}</div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {groups.map(g => (
+          <div key={g.id} style={{ display: 'grid', gridTemplateColumns: '72px repeat(6, 1fr)', gap: 4, alignItems: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#4a5568', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {g.name}
+            </div>
+            {AREAS.map(area => {
+              const a = g.areas[area]
+              const total = a?.latest_check_total ?? 0
+              const passed = a?.latest_check_passed ?? 0
+              const hasFlowchart = (a?.flowchart_count ?? 0) > 0
+              let bg: string, textColor: string, label: string
+              if (total > 0 && passed === total) {
+                bg = '#10b981'; textColor = '#fff'; label = '✓'
+              } else if (total > 0) {
+                bg = '#f59e0b'; textColor = '#fff'; label = '△'
+              } else if (hasFlowchart) {
+                bg = '#e0e7ff'; textColor = '#4338ca'; label = '△'
+              } else {
+                bg = '#f1f5f9'; textColor = '#94a3b8'; label = '—'
+              }
+              return (
+                <div key={area} style={{
+                  height: 32, borderRadius: 6, background: bg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, fontWeight: 700, color: textColor,
+                }}>
+                  {label}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
+        {[
+          { bg: '#10b981', label: '✓ 全部通过' },
+          { bg: '#f59e0b', label: '△ 部分通过' },
+          { bg: '#e0e7ff', label: '△ 已生成未检测' },
+          { bg: '#f1f5f9', label: '— 未开始' },
+        ].map(item => (
+          <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 14, height: 14, borderRadius: 3, background: item.bg }} />
+            <span style={{ fontSize: 12, color: '#64748b' }}>{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── FlowchartAnalysisBlock ───────────────────────────────────
+
+function FlowchartAnalysisBlock({ groups }: { groups: GroupSummary[] }) {
+  const rateData = [...groups]
+    .map(g => {
+      const rate = computeFlowchartRate(g)
+      return { name: g.name, rate, fill: passColor(rate) }
+    })
+    .filter(d => d.rate > 0)
+    .sort((a, b) => b.rate - a.rate)
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+      <div style={{
+        fontSize: 20, fontWeight: 800, color: '#1e293b',
+        marginBottom: 20, paddingBottom: 12, borderBottom: '3px solid #edf2f7',
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        功能设计成效
+        <span style={{ fontSize: 13, background: '#dbeafe', color: '#1d4ed8', padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>
+          流程图检测
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#64748b', marginBottom: 12 }}>各组最终通过率</div>
+          <PassRateBarChart data={rateData} />
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#64748b', marginBottom: 12 }}>区域完成覆盖</div>
+          <CoverageMatrix groups={groups} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminSummary() {
   const [data, setData] = useState<SummaryData | null>(null)
   const [progress, setProgress] = useState<ProgressData | null>(null)
@@ -322,6 +452,7 @@ export default function AdminSummary() {
       <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: '#1a202c' }}>学习评价</h2>
       <SummaryBar overview={data.overview} groups={data.groups} />
       <GroupCardGrid groups={data.groups} checkTrend={progress.checkTrend} />
+      <FlowchartAnalysisBlock groups={data.groups} />
     </div>
   )
 }
