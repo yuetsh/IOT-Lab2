@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import MermaidRenderer from '../../components/MermaidRenderer'
 import { normalizeMermaidNodeId } from '../journalState'
+import { DEVICE_ANSWER_AREA_COLORS, DEVICE_ANSWER_BUTTON_LABEL, DEVICE_ANSWER_DIALOG_TITLE, DEVICE_ANSWER_LIST } from './deviceAnswerList'
 import { stickerImageSrc } from './stickerManagement'
 
 const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统'] as const
@@ -281,9 +282,148 @@ function GroupCard({ data }: { data: GroupData }) {
   )
 }
 
+function DeviceAnswerDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      role="presentation"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        background: 'rgba(26,32,44,0.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={DEVICE_ANSWER_DIALOG_TITLE}
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 'min(960px, 100%)',
+          maxHeight: '86vh',
+          background: '#fff',
+          borderRadius: 12,
+          boxShadow: '0 18px 50px rgba(0,0,0,0.24)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{
+          padding: '16px 20px',
+          borderBottom: '1px solid #e2e8f0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1a202c' }}>{DEVICE_ANSWER_DIALOG_TITLE}</h3>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#718096' }}>
+              与设备选型 AI 检测使用的标准节点对应关系一致
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="关闭"
+            style={{
+              width: 34,
+              height: 34,
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              background: '#fff',
+              cursor: 'pointer',
+              color: '#4a5568',
+              fontSize: 20,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: '#f7fafc' }}>
+                {['功能区域', '功能节点', '标准设备'].map(h => (
+                  <th key={h} style={{
+                    padding: '11px 16px',
+                    textAlign: 'left',
+                    fontWeight: 700,
+                    color: '#4a5568',
+                    borderBottom: '1px solid #e2e8f0',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {DEVICE_ANSWER_LIST.map((row, i) => {
+                const color = DEVICE_ANSWER_AREA_COLORS[row.area] ?? { background: '#fff', accent: '#a0aec0', text: '#4a5568' }
+                return (
+                  <tr
+                    key={`${row.area}-${row.node}`}
+                    style={{
+                      background: color.background,
+                      borderBottom: i < DEVICE_ANSWER_LIST.length - 1 ? '1px solid rgba(160,174,192,0.35)' : undefined,
+                    }}
+                  >
+                    <td style={{
+                      padding: '10px 16px',
+                      color: color.text,
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      verticalAlign: 'top',
+                      borderLeft: `6px solid ${color.accent}`,
+                    }}>
+                      {row.area}
+                    </td>
+                    <td style={{ padding: '10px 16px', color: '#2d3748', verticalAlign: 'top' }}>
+                      {row.node}
+                    </td>
+                    <td style={{ padding: '10px 16px', color: '#4a5568', verticalAlign: 'top' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {row.devices.map(device => (
+                          <span key={device} style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '3px 8px',
+                            borderRadius: 999,
+                            background: '#fff',
+                            border: `1px solid ${color.accent}`,
+                            color: color.text,
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {device}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminDevicePlacements() {
   const [groups, setGroups] = useState<GroupData[]>([])
   const [loading, setLoading] = useState(true)
+  const [showAnswerDialog, setShowAnswerDialog] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/device-placements')
@@ -295,7 +435,26 @@ export default function AdminDevicePlacements() {
 
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>设备选型总览</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
+        <h2 style={{ margin: 0 }}>设备选型总览</h2>
+        <button
+          type="button"
+          onClick={() => setShowAnswerDialog(true)}
+          style={{
+            border: '1px solid #bee3f8',
+            borderRadius: 8,
+            background: '#ebf8ff',
+            color: '#2b6cb0',
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 700,
+            padding: '8px 14px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {DEVICE_ANSWER_BUTTON_LABEL}
+        </button>
+      </div>
       {groups.length === 0 ? (
         <p style={{ color: '#a0aec0' }}>暂无小组记录</p>
       ) : (
@@ -303,6 +462,7 @@ export default function AdminDevicePlacements() {
           {groups.map(g => <GroupCard key={g.group_id} data={g} />)}
         </div>
       )}
+      {showAnswerDialog && <DeviceAnswerDialog onClose={() => setShowAnswerDialog(false)} />}
     </div>
   )
 }
