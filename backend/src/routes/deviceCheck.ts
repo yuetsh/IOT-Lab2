@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
 import { AREA_DEVICE_NODE_MAPPINGS } from '../areaFlowcharts'
+import { DEEPSEEK_CHAT_COMPLETIONS_URL, buildDeepSeekChatCompletionBody } from '../deepseek'
 
 type PlacementInput = {
   sticker_name: string
@@ -144,17 +145,13 @@ export const deviceCheckRouter = new Elysia()
     const apiKey = process.env.DEEPSEEK_API_KEY
     if (!apiKey) throw new Error('DEEPSEEK_API_KEY 未配置')
 
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
+    const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'user', content: prompt }],
-        stream: false,
-      }),
+      body: JSON.stringify(buildDeepSeekChatCompletionBody([{ role: 'user', content: prompt }])),
     })
 
     if (!response.ok) {

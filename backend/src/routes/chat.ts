@@ -4,6 +4,7 @@ import { buildDeepSeekMessages } from '../chatContext'
 import { AREA_REFERENCE_FLOWCHARTS } from '../areaFlowcharts'
 import { shouldClearJournalPlacementsForFlowchartChange } from '../flowchartState'
 import { insertFlowchartHistory } from '../flowchartHistory'
+import { DEEPSEEK_CHAT_COMPLETIONS_URL, buildDeepSeekChatCompletionBody } from '../deepseek'
 
 const SYSTEM_PROMPT = `你是物联网系统功能设计师，专注于智慧图书馆系统设计。用中文回复。
 
@@ -69,24 +70,22 @@ export const chatRouter = new Elysia()
     const apiKey = process.env.DEEPSEEK_API_KEY
     if (!apiKey) throw new Error('DEEPSEEK_API_KEY 未配置')
 
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
+    const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: buildDeepSeekMessages({
+      body: JSON.stringify(buildDeepSeekChatCompletionBody(
+        buildDeepSeekMessages({
           systemPrompt: SYSTEM_PROMPT,
           area: area ?? null,
           latestMermaidCode: latestFlowchart?.mermaid_code ?? null,
           referenceFlowchart: area ? (AREA_REFERENCE_FLOWCHARTS[area] ?? null) : null,
           history: history as { role: 'user' | 'assistant'; content: string }[],
           userMessage: message,
-        }),
-        stream: false
-      })
+        })
+      ))
     })
 
     if (!response.ok) {
@@ -149,17 +148,13 @@ ${criteria.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}
 以 JSON 数组格式回复，不要有其他内容，格式：
 [{"passed":true,"comment":"简短说明"},...]`
 
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
+    const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'user', content: checkPrompt }],
-        stream: false
-      })
+      body: JSON.stringify(buildDeepSeekChatCompletionBody([{ role: 'user', content: checkPrompt }]))
     })
 
     if (!response.ok) {
