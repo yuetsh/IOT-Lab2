@@ -2,15 +2,47 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getGroupWorkspacePath } from './groupRoutes'
 
-interface Group { id: number; name: string }
+export interface Group { id: number; name: string }
+
+type HomeActionEntry =
+  | { type: 'group'; label: string; groupId: number; background: string; hoverBackground: string; shadow: string }
+  | { type: 'admin'; label: string; path: string; background: string; hoverBackground: string; shadow: string }
 
 export const GROUP_SELECT_ADMIN_ENTRY_LABEL = '教师后台'
 export const GROUP_SELECT_ADMIN_ENTRY_PATH = '/admin'
 export const GROUP_SELECT_ADMIN_ENTRY_BACKGROUND = '#2b6cb0'
+export const GROUP_SELECT_JUDGE_ENTRY_LABEL = '评委体验'
+export const GROUP_SELECT_JUDGE_ENTRY_BACKGROUND = '#2f855a'
+
+export function splitHomeEntries(groups: Group[]) {
+  const judgeGroup = groups.find(g => g.name === GROUP_SELECT_JUDGE_ENTRY_LABEL)
+  const studyGroups = groups.filter(g => g.name !== GROUP_SELECT_JUDGE_ENTRY_LABEL)
+  const actionEntries: HomeActionEntry[] = [
+    ...(judgeGroup ? [{
+      type: 'group' as const,
+      label: judgeGroup.name,
+      groupId: judgeGroup.id,
+      background: GROUP_SELECT_JUDGE_ENTRY_BACKGROUND,
+      hoverBackground: '#276749',
+      shadow: '0 4px 12px rgba(47,133,90,0.28)',
+    }] : []),
+    {
+      type: 'admin',
+      label: GROUP_SELECT_ADMIN_ENTRY_LABEL,
+      path: GROUP_SELECT_ADMIN_ENTRY_PATH,
+      background: GROUP_SELECT_ADMIN_ENTRY_BACKGROUND,
+      hoverBackground: '#2c5282',
+      shadow: '0 4px 12px rgba(43,108,176,0.28)',
+    },
+  ]
+
+  return { studyGroups, actionEntries }
+}
 
 export default function GroupSelect() {
   const [groups, setGroups] = useState<Group[]>([])
   const navigate = useNavigate()
+  const { studyGroups, actionEntries } = splitHomeEntries(groups)
 
   useEffect(() => {
     fetch('/api/groups').then(r => r.json()).then(setGroups)
@@ -24,7 +56,7 @@ export default function GroupSelect() {
         <p style={{ color: '#a0aec0' }}>暂无小组，请联系教师创建</p>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center', maxWidth: 640 }}>
-        {groups.map(g => (
+        {studyGroups.map(g => (
           <button
             key={g.id}
             onClick={() => navigate(getGroupWorkspacePath(g.id, 'chat'))}
@@ -41,20 +73,38 @@ export default function GroupSelect() {
           </button>
         ))}
       </div>
-      <button
-        onClick={() => navigate(GROUP_SELECT_ADMIN_ENTRY_PATH)}
-        style={{
-          marginTop: 20,
-          padding: '18px 48px', fontSize: 18, fontWeight: 700,
-          background: GROUP_SELECT_ADMIN_ENTRY_BACKGROUND, border: `2px solid ${GROUP_SELECT_ADMIN_ENTRY_BACKGROUND}`, borderRadius: 12,
-          cursor: 'pointer', color: '#fff', transition: 'all 0.15s',
-          boxShadow: '0 4px 12px rgba(43,108,176,0.28)'
-        }}
-        onMouseEnter={e => { (e.target as HTMLElement).style.background = '#2c5282'; (e.target as HTMLElement).style.borderColor = '#2c5282' }}
-        onMouseLeave={e => { (e.target as HTMLElement).style.background = GROUP_SELECT_ADMIN_ENTRY_BACKGROUND; (e.target as HTMLElement).style.borderColor = GROUP_SELECT_ADMIN_ENTRY_BACKGROUND }}
-      >
-        {GROUP_SELECT_ADMIN_ENTRY_LABEL}
-      </button>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center', marginTop: 20 }}>
+        {actionEntries.map(entry => {
+          const isAdmin = entry.type === 'admin'
+          return (
+            <button
+              key={entry.label}
+              onClick={() => navigate(isAdmin ? entry.path : getGroupWorkspacePath(entry.groupId, 'chat'))}
+              style={{
+                minWidth: 160,
+                padding: '18px 40px', fontSize: 18, fontWeight: 700,
+                background: entry.background,
+                border: `2px solid ${entry.background}`,
+                borderRadius: 12,
+                cursor: 'pointer',
+                color: '#fff',
+                transition: 'all 0.15s',
+                boxShadow: entry.shadow
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = entry.hoverBackground
+                e.currentTarget.style.borderColor = entry.hoverBackground
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = entry.background
+                e.currentTarget.style.borderColor = entry.background
+              }}
+            >
+              {entry.label}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
