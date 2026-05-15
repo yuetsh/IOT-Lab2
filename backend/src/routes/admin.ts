@@ -171,6 +171,7 @@ export const adminRouter = new Elysia()
         has_device_submission: boolean
         device_check_passed: number
         device_check_total: number
+        device_check_all_passed: boolean
       }> = {}
 
       for (const area of AREAS) {
@@ -219,11 +220,15 @@ export const adminRouter = new Elysia()
           has_device_submission: !!deviceSub,
           device_check_passed: deviceCheckPassed,
           device_check_total: deviceCheckTotal,
+          device_check_all_passed: deviceCheckTotal > 0 && deviceCheckPassed === deviceCheckTotal,
         }
       }
 
       const totalFlowcharts = AREAS.reduce((s, a) => s + areaSummaries[a].flowchart_count, 0)
-      const completedAreas = AREAS.filter(a => areaSummaries[a].flowchart_count > 0).length
+      const completedAreas = AREAS.filter(a =>
+        areaSummaries[a].latest_check_total > 0 &&
+        areaSummaries[a].latest_check_passed === areaSummaries[a].latest_check_total
+      ).length
       const deviceCompletedAreas = AREAS.filter(a => areaSummaries[a].has_device_submission).length
 
       return {
@@ -240,7 +245,7 @@ export const adminRouter = new Elysia()
     })
 
     const totalGroups = groups.length
-    const avgMessages = totalGroups > 0 ? Math.round(groupSummaries.reduce((s, g) => s + g.message_count, 0) / totalGroups) : 0
+    const avgMessages = totalGroups > 0 ? Math.round(groupSummaries.reduce((s, g) => s + g.user_message_count, 0) / totalGroups) : 0
     const avgFlowcharts = totalGroups > 0 ? Math.round(groupSummaries.reduce((s, g) => s + g.total_flowcharts, 0) / totalGroups * 10) / 10 : 0
     const allAreasComplete = groupSummaries.filter(g => g.completed_areas === 6).length
     const allDeviceComplete = groupSummaries.filter(g => g.device_completed_areas === 6).length
@@ -278,28 +283,10 @@ export const adminRouter = new Elysia()
       return { group_id: g.id, group_name: g.name, checks }
     })
 
-    // 2. 各区域平均修改轮次（生成了多少次流程图才通过检测）
-    const revisionRounds = AREAS.map(area => {
-      const rows = db.query(`
-        SELECT fh.group_id, COUNT(*) as rounds,
-               MAX(CASE WHEN cr.id IS NOT NULL THEN 1 ELSE 0 END) as has_check
-        FROM flowchart_history fh
-        LEFT JOIN check_results cr ON cr.flowchart_history_id = fh.id AND cr.group_id = fh.group_id
-        WHERE fh.area = ?
-        GROUP BY fh.group_id
-      `).all(area) as { group_id: number; rounds: number; has_check: number }[]
-
-      const withCheck = rows.filter(r => r.has_check)
-      const avgRounds = withCheck.length > 0
-        ? Math.round(withCheck.reduce((s, r) => s + r.rounds, 0) / withCheck.length * 10) / 10
-        : 0
-      return { area, avg_rounds: avgRounds, groups_count: rows.length }
-    })
-
-    // 3. 全局完成排名：所有组所有区域放在一起，按通过检测时间统一排序
+    // 2. 全局完成排名：所有组所有区域放一个池，按时间统一排序
     const parseTs = (s: string) => new Date(s.replace(' ', 'T')).getTime()
 
-    const allCompletions: { group_id: number; area: string; ts: number }[] = []
+    const allCompletions: { group_id: number; area: string; ts: number; time: string }[] = []
     for (const area of AREAS) {
       const rows = db.query(`
         SELECT cr.group_id, MAX(cr.created_at) as last_passed_at
@@ -312,22 +299,25 @@ export const adminRouter = new Elysia()
       `).all(area) as { group_id: number; last_passed_at: string }[]
 
       for (const r of rows) {
-        allCompletions.push({ group_id: r.group_id, area, ts: parseTs(r.last_passed_at) })
+        allCompletions.push({ group_id: r.group_id, area, ts: parseTs(r.last_passed_at), time: r.last_passed_at })
       }
     }
 
     allCompletions.sort((a, b) => a.ts - b.ts)
-    const rankMap = new Map(allCompletions.map((c, i) => [`${c.group_id}:${c.area}`, i + 1]))
+    const globalTotal = allCompletions.length
 
-    const completionTimeline = groups.map(g => {
-      const areas: Record<string, number | null> = {}
-      for (const area of AREAS) {
-        areas[area] = rankMap.get(`${g.id}:${area}`) ?? null
-      }
-      return { group_id: g.id, group_name: g.name, areas }
+    const completionTimeline = groups.map(g => ({
+      group_id: g.id,
+      group_name: g.name,
+      areas: Object.fromEntries(AREAS.map(a => [a, null as { rank: number; total: number; time: string } | null])),
+    }))
+
+    allCompletions.forEach((c, i) => {
+      const group = completionTimeline.find(g => g.group_id === c.group_id)
+      if (group) group.areas[c.area] = { rank: i + 1, total: globalTotal, time: c.time }
     })
 
-    return { checkTrend, revisionRounds, completionTimeline }
+    return { checkTrend, completionTimeline }
   })
   .post('/api/admin/clear', () => {
     clearAll()
