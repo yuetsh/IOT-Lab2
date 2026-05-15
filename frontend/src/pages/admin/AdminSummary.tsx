@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
-export const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统'] as const
-export const AREA_SHORT = ['大门', '身份', '安防', 'LED', '绿植', '自助'] as const
+const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统'] as const
+const AREA_SHORT = ['大门', '身份', '安防', 'LED', '绿植', '自助'] as const
 
 interface AreaSummary {
   flowchart_count: number
@@ -58,13 +58,13 @@ interface ProgressData {
 
 // ─── 计算辅助 ───────────────────────────────────────────────
 
-export function computeFlowchartRate(group: GroupSummary): number {
+function computeFlowchartRate(group: GroupSummary): number {
   const total = AREAS.reduce((s, a) => s + (group.areas[a]?.latest_check_total ?? 0), 0)
   const passed = AREAS.reduce((s, a) => s + (group.areas[a]?.latest_check_passed ?? 0), 0)
   return total > 0 ? Math.round((passed / total) * 100) : 0
 }
 
-export function computeFlowchartImprovement(groupId: number, checkTrend: GroupCheckTrend[]): number | null {
+function computeFlowchartImprovement(groupId: number, checkTrend: GroupCheckTrend[]): number | null {
   const trend = checkTrend.find(t => t.group_id === groupId)
   if (!trend || trend.checks.length === 0) return null
   const byArea: Record<string, CheckAttempt[]> = {}
@@ -82,17 +82,17 @@ export function computeFlowchartImprovement(groupId: number, checkTrend: GroupCh
   return Math.round(avgLast - avgFirst)
 }
 
-export function computeDeviceRate(group: GroupSummary): number {
+function computeDeviceRate(group: GroupSummary): number {
   const total = AREAS.reduce((s, a) => s + (group.areas[a]?.device_check_total ?? 0), 0)
   const passed = AREAS.reduce((s, a) => s + (group.areas[a]?.device_check_passed ?? 0), 0)
   return total > 0 ? Math.round((passed / total) * 100) : 0
 }
 
-export function computeDeviceCoverage(group: GroupSummary): number {
+function computeDeviceCoverage(group: GroupSummary): number {
   return AREAS.filter(a => group.areas[a]?.has_device_submission).length
 }
 
-export function passColor(rate: number): string {
+function passColor(rate: number): string {
   if (rate >= 80) return '#10b981'
   if (rate >= 60) return '#f59e0b'
   return '#ef4444'
@@ -137,6 +137,167 @@ function SummaryBar({ overview, groups }: { overview: Overview; groups: GroupSum
   )
 }
 
+// ─── AreaDots ─────────────────────────────────────────────────
+
+function AreaDots({ group, mode }: { group: GroupSummary; mode: 'flowchart' | 'device' }) {
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      {AREAS.map((area, i) => {
+        const a = group.areas[area]
+        let bg: string
+        let title: string
+        if (mode === 'flowchart') {
+          const total = a?.latest_check_total ?? 0
+          const passed = a?.latest_check_passed ?? 0
+          if (total === 0) { bg = '#e2e8f0'; title = '未检测' }
+          else if (passed === total) { bg = '#10b981'; title = '全部通过' }
+          else if (passed / total >= 0.6) { bg = '#f59e0b'; title = '部分通过' }
+          else { bg = '#ef4444'; title = '未通过' }
+        } else {
+          if (!a?.has_device_submission) { bg = '#e2e8f0'; title = '未提交' }
+          else if (a.device_check_all_passed) { bg = '#10b981'; title = '验证通过' }
+          else { bg = '#60a5fa'; title = '待验证' }
+        }
+        return (
+          <div
+            key={area}
+            title={`${AREA_SHORT[i]}: ${title}`}
+            style={{
+              width: 22, height: 22, borderRadius: 5, background: bg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 9, color: '#fff', fontWeight: 700,
+            }}
+          >
+            {AREA_SHORT[i]}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── DimBlock ─────────────────────────────────────────────────
+
+function DimBlock({ title, dotColor, rate, improvement, coverage, group, mode }: {
+  title: string
+  dotColor: string
+  rate: number
+  improvement: number | null
+  coverage: number
+  group: GroupSummary
+  mode: 'flowchart' | 'device'
+}) {
+  const barColor = passColor(rate)
+  return (
+    <div style={{ background: '#f8fafc', borderRadius: 12, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor }} />
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>{title}</span>
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>最终通过率</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: rate > 0 ? barColor : '#94a3b8' }}>
+            {rate > 0 ? `${rate}%` : '—'}
+          </span>
+        </div>
+        <div style={{ height: 6, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={{ width: `${rate}%`, height: '100%', background: barColor, borderRadius: 3 }} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>进步幅度</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: improvement !== null && improvement > 0 ? '#10b981' : '#94a3b8' }}>
+          {improvement !== null ? (improvement > 0 ? `+${improvement}%` : `${improvement}%`) : '—'}
+        </span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>完成区域</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{coverage} / 6</span>
+      </div>
+      <AreaDots group={group} mode={mode} />
+    </div>
+  )
+}
+
+// ─── GroupCard ────────────────────────────────────────────────
+
+function GroupCard({ group, checkTrend, isTop }: {
+  group: GroupSummary
+  checkTrend: GroupCheckTrend[]
+  isTop: boolean
+}) {
+  const flowchartRate = computeFlowchartRate(group)
+  const flowchartImprovement = computeFlowchartImprovement(group.id, checkTrend)
+  const flowchartCoverage = AREAS.filter(a => (group.areas[a]?.latest_check_total ?? 0) > 0).length
+  const deviceRate = computeDeviceRate(group)
+  const deviceCoverage = computeDeviceCoverage(group)
+
+  return (
+    <div style={{
+      background: '#fff',
+      borderRadius: 16,
+      padding: 24,
+      boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+      border: `2px solid ${isTop ? '#f59e0b' : 'transparent'}`,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <span style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{group.name}</span>
+        {isTop && (
+          <span style={{
+            fontSize: 12, background: '#fef3c7', color: '#92400e',
+            padding: '4px 10px', borderRadius: 20, fontWeight: 700,
+          }}>
+            最佳小组
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <DimBlock
+          title="功能设计"
+          dotColor="#3b82f6"
+          rate={flowchartRate}
+          improvement={flowchartImprovement}
+          coverage={flowchartCoverage}
+          group={group}
+          mode="flowchart"
+        />
+        <DimBlock
+          title="设备选型"
+          dotColor="#10b981"
+          rate={deviceRate}
+          improvement={null}
+          coverage={deviceCoverage}
+          group={group}
+          mode="device"
+        />
+      </div>
+    </div>
+  )
+}
+
+// ─── GroupCardGrid ────────────────────────────────────────────
+
+function GroupCardGrid({ groups, checkTrend }: { groups: GroupSummary[]; checkTrend: GroupCheckTrend[] }) {
+  const sorted = [...groups].sort((a, b) =>
+    (computeFlowchartRate(b) + computeDeviceRate(b)) - (computeFlowchartRate(a) + computeDeviceRate(a))
+  )
+  const topId = sorted[0]?.id
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      {sorted.map(group => (
+        <GroupCard
+          key={group.id}
+          group={group}
+          checkTrend={checkTrend}
+          isTop={group.id === topId}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function AdminSummary() {
   const [data, setData] = useState<SummaryData | null>(null)
   const [progress, setProgress] = useState<ProgressData | null>(null)
@@ -160,6 +321,7 @@ export default function AdminSummary() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: '#1a202c' }}>学习评价</h2>
       <SummaryBar overview={data.overview} groups={data.groups} />
+      <GroupCardGrid groups={data.groups} checkTrend={progress.checkTrend} />
     </div>
   )
 }
