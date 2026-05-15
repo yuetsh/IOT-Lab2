@@ -428,6 +428,52 @@ function FlowchartAnalysisBlock({ groups }: { groups: GroupSummary[] }) {
   )
 }
 
+// ─── DeviceAnalysisBlock ──────────────────────────────────────
+
+function DeviceAnalysisBlock({ groups }: { groups: GroupSummary[] }) {
+  const rateData = [...groups]
+    .map(g => {
+      const rate = computeDeviceRate(g)
+      return { name: g.name, rate, fill: passColor(rate) }
+    })
+    .filter(d => d.rate > 0)
+    .sort((a, b) => b.rate - a.rate)
+
+  const coverageData = [...groups]
+    .map(g => {
+      const n = computeDeviceCoverage(g)
+      const rate = Math.round((n / 6) * 100)
+      return { name: g.name, rate, fill: passColor(rate) }
+    })
+    .filter(d => d.rate > 0)
+    .sort((a, b) => b.rate - a.rate)
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+      <div style={{
+        fontSize: 20, fontWeight: 800, color: '#1e293b',
+        marginBottom: 20, paddingBottom: 12, borderBottom: '3px solid #edf2f7',
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        设备选型成效
+        <span style={{ fontSize: 13, background: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>
+          设备放置检测
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#64748b', marginBottom: 12 }}>各组最终通过率</div>
+          <PassRateBarChart data={rateData} />
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#64748b', marginBottom: 12 }}>各组区域覆盖进度</div>
+          <PassRateBarChart data={coverageData} tooltipLabel="覆盖率" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminSummary() {
   const [data, setData] = useState<SummaryData | null>(null)
   const [progress, setProgress] = useState<ProgressData | null>(null)
@@ -453,6 +499,7 @@ export default function AdminSummary() {
       <SummaryBar overview={data.overview} groups={data.groups} />
       <GroupCardGrid groups={data.groups} checkTrend={progress.checkTrend} />
       <FlowchartAnalysisBlock groups={data.groups} />
+      <DeviceAnalysisBlock groups={data.groups} />
     </div>
   )
 }
