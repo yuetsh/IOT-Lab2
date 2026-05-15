@@ -16,7 +16,7 @@ export default function AdminLayout() {
         <NavLink to="/admin" end style={({ isActive }) => navStyle(isActive)}>功能设计</NavLink>
         <NavLink to="/admin/device-placements" style={({ isActive }) => navStyle(isActive)}>设备选型</NavLink>
                 <NavLink to="/admin/summary" style={({ isActive }) => navStyle(isActive)}>数据总结</NavLink>
-                        <NavLink to="/admin/data" style={({ isActive }) => navStyle(isActive)}>设备表格</NavLink>
+                        <NavLink to="/admin/data" style={({ isActive }) => navStyle(isActive)}>设备清单</NavLink>
         <NavLink to="/admin/groups" style={({ isActive }) => navStyle(isActive)}>小组管理</NavLink>
         <NavLink to="/admin/stickers" style={({ isActive }) => navStyle(isActive)}>设备管理</NavLink>
         <NavLink to="/admin/settings" style={({ isActive }) => navStyle(isActive)}>网站设置</NavLink>

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import ChatTab, { type WorkspaceContext } from './ChatTab'
 import JournalTab from './JournalTab'
+import AdminDataView from './admin/AdminDataView'
+import { DEVICE_DATA_BUTTON_LABEL, DEVICE_DATA_DIALOG_TITLE } from './deviceDataModal'
 import { getGroupWorkspacePath, isGroupWorkspaceTab } from './groupRoutes'
 import { normalizeMermaidNodeId, shouldClearPlacementsOnFlowchartChange } from './journalState'
 
@@ -45,6 +47,7 @@ export default function GroupWorkspace() {
   const [areasWithFlowcharts, setAreasWithFlowcharts] = useState<string[]>([])
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContext>(routeContext)
   const [aiCheckResults, setAiCheckResults] = useState<AiCheckResult[] | null>(null)
+  const [isDeviceDataOpen, setIsDeviceDataOpen] = useState(false)
   const lastNonEmptyMermaidCodeRef = useRef<string | null>(null)
   const mermaidCodeRef = useRef<string | null>(null)
   mermaidCodeRef.current = mermaidCode
@@ -193,6 +196,22 @@ export default function GroupWorkspace() {
             </button>
           ))}
         </div>
+        <button
+          onClick={() => setIsDeviceDataOpen(true)}
+          style={{
+            marginLeft: 'auto',
+            padding: '7px 14px',
+            borderRadius: 6,
+            border: '1px solid #cbd5e0',
+            background: '#fff',
+            color: '#2d3748',
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          {DEVICE_DATA_BUTTON_LABEL}
+        </button>
       </div>
 
       {/* 内容区 */}
@@ -220,6 +239,66 @@ export default function GroupWorkspace() {
           />
         )}
       </div>
+
+      {isDeviceDataOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="device-data-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(15, 23, 42, 0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={() => setIsDeviceDataOpen(false)}
+        >
+          <div
+            style={{
+              width: 'min(1120px, 100%)',
+              maxHeight: '86vh',
+              display: 'flex',
+              flexDirection: 'column',
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 24px 60px rgba(15, 23, 42, 0.28)',
+              overflow: 'hidden',
+            }}
+            onClick={event => event.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid #e2e8f0' }}>
+              <h2 id="device-data-title" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1a202c' }}>
+                {DEVICE_DATA_DIALOG_TITLE}
+              </h2>
+              <button
+                onClick={() => setIsDeviceDataOpen(false)}
+                aria-label="关闭设备表格"
+                style={{
+                  marginLeft: 'auto',
+                  width: 32,
+                  height: 32,
+                  border: 'none',
+                  borderRadius: 6,
+                  background: '#f7fafc',
+                  color: '#4a5568',
+                  cursor: 'pointer',
+                  fontSize: 20,
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ overflow: 'auto', padding: 18 }}>
+              <AdminDataView />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
