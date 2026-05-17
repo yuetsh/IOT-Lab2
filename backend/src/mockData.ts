@@ -1,4 +1,5 @@
 import { db } from './db'
+import { groups, stickers, flowchart_history, check_results, messages, flowcharts, device_submissions, device_check_results, journal_placements } from './schema'
 import { AREA_REFERENCE_FLOWCHARTS, AREA_DEVICE_NODE_MAPPINGS } from './areaFlowcharts'
 
 const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
@@ -189,32 +190,24 @@ const AREA_MESSAGES: Record<string, Array<{ role: 'user' | 'assistant'; content:
 }
 
 type GroupProfile = {
-  areasCompleted: number       // 已全部完成（流程图+设备）的区域数
-  areasInProgress: number      // 第1轮已提交、等待修改的区域数
-  failRate: number             // 第1轮检测失败项比例
-  threeRoundAreas: number[]    // 需要3轮才通过的区域下标
-  deviceFails: Record<number, number>  // 区域下标 → 设备检测失败数量
-  speed: number                // 每步骤耗时倍率（越大越慢）
-  msgCount: number             // 每区域聊天消息条数
+  areasCompleted: number
+  areasInProgress: number
+  failRate: number
+  threeRoundAreas: number[]
+  deviceFails: Record<number, number>
+  speed: number
+  msgCount: number
 }
 
-// 6种典型小组画像，循环分配给各小组
 const GROUP_PROFILES: GroupProfile[] = [
-  // 稳健型：全部完成，第1轮少量失误
   { areasCompleted: 6, areasInProgress: 0, failRate: 0.25, threeRoundAreas: [],     deviceFails: {},     speed: 0.9, msgCount: 4 },
-  // 落后型：完成4个，第2区域挣扎3轮，设备放置有2处失误
   { areasCompleted: 4, areasInProgress: 1, failRate: 0.55, threeRoundAreas: [1],    deviceFails: {2: 2}, speed: 1.4, msgCount: 6 },
-  // 速度型：全部完成，但第1区域设备放置1处出错
   { areasCompleted: 6, areasInProgress: 0, failRate: 0.38, threeRoundAreas: [],     deviceFails: {0: 1}, speed: 0.8, msgCount: 4 },
-  // 中等型：完成5个，第4区域需3轮，设备放置3处失误
   { areasCompleted: 5, areasInProgress: 1, failRate: 0.35, threeRoundAreas: [3],    deviceFails: {4: 3}, speed: 1.1, msgCount: 5 },
-  // 优秀型：全部完成，几乎一次通过，消息最少
   { areasCompleted: 6, areasInProgress: 0, failRate: 0.10, threeRoundAreas: [],     deviceFails: {},     speed: 0.7, msgCount: 3 },
-  // 困难型：只完成3个，多区域需3轮，进度最慢
   { areasCompleted: 3, areasInProgress: 2, failRate: 0.70, threeRoundAreas: [0, 2], deviceFails: {1: 4}, speed: 1.8, msgCount: 6 },
 ]
 
-// 按组编号和区域编号确定性地选取失败项（各组失败的项不同）
 function getFailingIndices(itemCount: number, failRate: number, gi: number, ai: number): Set<number> {
   const count = Math.min(itemCount - 1, Math.max(0, Math.round(itemCount * failRate)))
   const start = (gi * 3 + ai * 2) % itemCount
@@ -230,16 +223,16 @@ function formatTs(date: Date): string {
 }
 
 export function runMockData() {
-  const groups = db.query('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[]
-  if (groups.length === 0) throw new Error('请先加载种子数据')
+  const groupList = db.select({ id: groups.id, name: groups.name }).from(groups).orderBy(groups.name).all()
+  if (groupList.length === 0) throw new Error('请先加载种子数据')
 
-  const stickers = db.query('SELECT id, name, filename FROM stickers').all() as { id: number; name: string; filename: string }[]
-  const stickerByName = new Map(stickers.map(s => [s.name, { id: s.id, filename: s.filename }]))
+  const stickerList = db.select({ id: stickers.id, name: stickers.name, filename: stickers.filename }).from(stickers).all()
+  const stickerByName = new Map(stickerList.map(s => [s.name, { id: s.id, filename: s.filename }]))
 
   const BASE_TIME = Date.now() - 3 * 60 * 60 * 1000
 
-  for (let gi = 0; gi < groups.length; gi++) {
-    const group = groups[gi]
+  for (let gi = 0; gi < groupList.length; gi++) {
+    const group = groupList[gi]
     const profile = GROUP_PROFILES[gi % GROUP_PROFILES.length]
     const { areasCompleted, areasInProgress, failRate, threeRoundAreas, deviceFails, speed, msgCount } = profile
 
@@ -262,90 +255,109 @@ export function runMockData() {
       const baseTs = BASE_TIME + ai * 30 * 60 * 1000
       const T = (min: number) => baseTs + Math.round(min * speed * 60 * 1000)
 
-      // 第1轮草稿
       const failingIdx = getFailingIndices(checkItems.length, failRate, gi, ai)
-      const h1 = db.query(
-        'INSERT INTO flowchart_history (group_id, area, mermaid_code, user_prompt, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id'
-      ).get(group.id, area, draftCode, `请帮我生成${area}的流程图`, formatTs(new Date(T(0)))) as { id: number }
+      const h1 = db.insert(flowchart_history).values({
+        group_id: group.id,
+        area,
+        mermaid_code: draftCode,
+        user_prompt: `请帮我生成${area}的流程图`,
+        created_at: formatTs(new Date(T(0))),
+      }).returning({ id: flowchart_history.id }).get()
 
-      db.query(
-        'INSERT INTO check_results (group_id, flowchart_history_id, area, results_json, created_at) VALUES (?, ?, ?, ?, ?)'
-      ).run(
-        group.id, h1.id, area,
-        JSON.stringify(checkItems.map((item, idx) => ({
+      db.insert(check_results).values({
+        group_id: group.id,
+        flowchart_history_id: h1.id,
+        area,
+        results_json: JSON.stringify(checkItems.map((item, idx) => ({
           passed: !failingIdx.has(idx),
           comment: failingIdx.has(idx)
             ? `未检测到相关节点，请补充${item.replace(/是否.*/, '')}的相关节点`
             : '符合要求',
         }))),
-        formatTs(new Date(T(2)))
-      )
+        created_at: formatTs(new Date(T(2))),
+      }).run()
 
-      // 聊天消息（各组取不同数量）
       const selectedMsgs = msgs.slice(0, Math.min(msgCount, msgs.length))
       for (let mi = 0; mi < selectedMsgs.length; mi++) {
-        db.query('INSERT INTO messages (group_id, role, content, area, created_at) VALUES (?, ?, ?, ?, ?)')
-          .run(group.id, selectedMsgs[mi].role, selectedMsgs[mi].content, area, formatTs(new Date(T(mi * 3))))
+        db.insert(messages).values({
+          group_id: group.id,
+          role: selectedMsgs[mi].role,
+          content: selectedMsgs[mi].content,
+          area,
+          created_at: formatTs(new Date(T(mi * 3))),
+        }).run()
       }
 
       if (areaState === 'inProgress') continue
 
-      // ── 已完成区域 ──
       let finalSubmitMin: number
 
       if (isThreeRounds) {
-        // 第2轮：仍有1项失败
         const round2FailIdx = Array.from(failingIdx)[0] ?? 0
-        const h2 = db.query(
-          'INSERT INTO flowchart_history (group_id, area, mermaid_code, user_prompt, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id'
-        ).get(group.id, area, draftCode, '我修改了一部分，请再帮我检查', formatTs(new Date(T(12)))) as { id: number }
+        const h2 = db.insert(flowchart_history).values({
+          group_id: group.id,
+          area,
+          mermaid_code: draftCode,
+          user_prompt: '我修改了一部分，请再帮我检查',
+          created_at: formatTs(new Date(T(12))),
+        }).returning({ id: flowchart_history.id }).get()
 
-        db.query(
-          'INSERT INTO check_results (group_id, flowchart_history_id, area, results_json, created_at) VALUES (?, ?, ?, ?, ?)'
-        ).run(
-          group.id, h2.id, area,
-          JSON.stringify(checkItems.map((item, idx) => ({
+        db.insert(check_results).values({
+          group_id: group.id,
+          flowchart_history_id: h2.id,
+          area,
+          results_json: JSON.stringify(checkItems.map((item, idx) => ({
             passed: idx !== round2FailIdx,
             comment: idx === round2FailIdx
               ? `仍未检测到${item.replace(/是否.*/, '')}的节点，请继续完善`
               : '符合要求',
           }))),
-          formatTs(new Date(T(14)))
-        )
+          created_at: formatTs(new Date(T(14))),
+        }).run()
 
-        // 第3轮：全部通过
-        const h3 = db.query(
-          'INSERT INTO flowchart_history (group_id, area, mermaid_code, user_prompt, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id'
-        ).get(group.id, area, finalCode, '已全部修改，请重新检查', formatTs(new Date(T(22)))) as { id: number }
+        const h3 = db.insert(flowchart_history).values({
+          group_id: group.id,
+          area,
+          mermaid_code: finalCode,
+          user_prompt: '已全部修改，请重新检查',
+          created_at: formatTs(new Date(T(22))),
+        }).returning({ id: flowchart_history.id }).get()
 
-        db.query(
-          'INSERT INTO check_results (group_id, flowchart_history_id, area, results_json, created_at) VALUES (?, ?, ?, ?, ?)'
-        ).run(
-          group.id, h3.id, area,
-          JSON.stringify(checkItems.map(() => ({ passed: true, comment: '符合要求' }))),
-          formatTs(new Date(T(24)))
-        )
+        db.insert(check_results).values({
+          group_id: group.id,
+          flowchart_history_id: h3.id,
+          area,
+          results_json: JSON.stringify(checkItems.map(() => ({ passed: true, comment: '符合要求' }))),
+          created_at: formatTs(new Date(T(24))),
+        }).run()
         finalSubmitMin = 22
       } else {
-        // 第2轮：全部通过
-        const h2 = db.query(
-          'INSERT INTO flowchart_history (group_id, area, mermaid_code, user_prompt, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id'
-        ).get(group.id, area, finalCode, '已修改，请重新检查', formatTs(new Date(T(12)))) as { id: number }
+        const h2 = db.insert(flowchart_history).values({
+          group_id: group.id,
+          area,
+          mermaid_code: finalCode,
+          user_prompt: '已修改，请重新检查',
+          created_at: formatTs(new Date(T(12))),
+        }).returning({ id: flowchart_history.id }).get()
 
-        db.query(
-          'INSERT INTO check_results (group_id, flowchart_history_id, area, results_json, created_at) VALUES (?, ?, ?, ?, ?)'
-        ).run(
-          group.id, h2.id, area,
-          JSON.stringify(checkItems.map(() => ({ passed: true, comment: '符合要求' }))),
-          formatTs(new Date(T(14)))
-        )
+        db.insert(check_results).values({
+          group_id: group.id,
+          flowchart_history_id: h2.id,
+          area,
+          results_json: JSON.stringify(checkItems.map(() => ({ passed: true, comment: '符合要求' }))),
+          created_at: formatTs(new Date(T(14))),
+        }).run()
         finalSubmitMin = 12
       }
 
-      db.query('INSERT OR REPLACE INTO flowcharts (group_id, area, mermaid_code, updated_at) VALUES (?, ?, ?, ?)')
-        .run(group.id, area, finalCode, formatTs(new Date(T(finalSubmitMin))))
+      db.insert(flowcharts)
+        .values({ group_id: group.id, area, mermaid_code: finalCode, updated_at: formatTs(new Date(T(finalSubmitMin))) })
+        .onConflictDoUpdate({
+          target: flowcharts.group_id,
+          set: { area, mermaid_code: finalCode, updated_at: formatTs(new Date(T(finalSubmitMin))) },
+        })
+        .run()
 
-      // 设备提交
       const deviceSubmitMin = finalSubmitMin + 6
       const placements = nodeMappings.flatMap(({ node, devices }, nodeIdx) =>
         devices
@@ -365,11 +377,14 @@ export function runMockData() {
           .filter(Boolean)
       )
 
-      const sub = db.query(
-        'INSERT INTO device_submissions (group_id, area, placements_json, mermaid_code, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id'
-      ).get(group.id, area, JSON.stringify(placements), finalCode, formatTs(new Date(T(deviceSubmitMin)))) as { id: number }
+      const sub = db.insert(device_submissions).values({
+        group_id: group.id,
+        area,
+        placements_json: JSON.stringify(placements),
+        mermaid_code: finalCode,
+        created_at: formatTs(new Date(T(deviceSubmitMin))),
+      }).returning({ id: device_submissions.id }).get()
 
-      // 设备检测（不同组、不同区域有不同数量的失败）
       const deviceFailCount = deviceFails[ai] ?? 0
       let deviceFailsSeen = 0
       const deviceCheckItems = nodeMappings.flatMap(({ node, devices }) =>
@@ -386,24 +401,34 @@ export function runMockData() {
           }
         })
       )
-      db.query(
-        'INSERT INTO device_check_results (group_id, submission_id, area, results_json, created_at) VALUES (?, ?, ?, ?, ?)'
-      ).run(group.id, sub.id, area, JSON.stringify(deviceCheckItems), formatTs(new Date(T(deviceSubmitMin + 2))))
+      db.insert(device_check_results).values({
+        group_id: group.id,
+        submission_id: sub.id,
+        area,
+        results_json: JSON.stringify(deviceCheckItems),
+        created_at: formatTs(new Date(T(deviceSubmitMin + 2))),
+      }).run()
 
-      // 日志贴纸放置
       for (let ni = 0; ni < nodeMappings.length; ni++) {
         const { node, devices } = nodeMappings[ni]
         for (let di = 0; di < devices.length; di++) {
           const stickerEntry = stickerByName.get(devices[di])
           if (!stickerEntry) continue
-          db.query(
-            'INSERT INTO journal_placements (group_id, area, sticker_id, node_id, node_label, x, y, scale) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-          ).run(group.id, area, stickerEntry.id, node, node, 80 + ni * 130 + di * 25, 80 + ni * 90, 1.0)
+          db.insert(journal_placements).values({
+            group_id: group.id,
+            area,
+            sticker_id: stickerEntry.id,
+            node_id: node,
+            node_label: node,
+            x: 80 + ni * 130 + di * 25,
+            y: 80 + ni * 90,
+            scale: 1.0,
+          }).run()
         }
       }
     }
   }
 
   console.log('✅ 模拟数据生成完成')
-  console.log(`   ${groups.length} 个小组 × ${AREAS.length} 个区域`)
+  console.log(`   ${groupList.length} 个小组 × ${AREAS.length} 个区域`)
 }

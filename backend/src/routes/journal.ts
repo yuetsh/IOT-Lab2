@@ -1,18 +1,30 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
+import { journal_placements, stickers } from '../schema'
+import { eq, and, isNotNull } from 'drizzle-orm'
 
 export const journalRouter = new Elysia()
   .get('/api/groups/:id/journal', ({ params, query }) => {
     const area = query.area ?? ''
-    return db.query(`
-      SELECT jp.id, jp.sticker_id, jp.node_id, jp.node_label, jp.x, jp.y, jp.scale,
-             s.name as sticker_name, s.filename as sticker_filename
-      FROM journal_placements jp
-      JOIN stickers s ON s.id = jp.sticker_id
-      WHERE jp.group_id = ?
-        AND jp.area = ?
-        AND jp.node_id IS NOT NULL
-    `).all(params.id, area)
+    return db.select({
+      id: journal_placements.id,
+      sticker_id: journal_placements.sticker_id,
+      node_id: journal_placements.node_id,
+      node_label: journal_placements.node_label,
+      x: journal_placements.x,
+      y: journal_placements.y,
+      scale: journal_placements.scale,
+      sticker_name: stickers.name,
+      sticker_filename: stickers.filename,
+    })
+      .from(journal_placements)
+      .innerJoin(stickers, eq(stickers.id, journal_placements.sticker_id))
+      .where(and(
+        eq(journal_placements.group_id, Number(params.id)),
+        eq(journal_placements.area, area),
+        isNotNull(journal_placements.node_id),
+      ))
+      .all()
   }, {
     query: t.Object({
       area: t.Optional(t.String()),
@@ -21,12 +33,20 @@ export const journalRouter = new Elysia()
   .put('/api/groups/:id/journal', ({ params, body }) => {
     const groupId = Number(params.id)
     const area = body.area ?? ''
-    db.query('DELETE FROM journal_placements WHERE group_id = ? AND area = ?').run(groupId, area)
-    const insert = db.prepare(
-      'INSERT INTO journal_placements (group_id, area, sticker_id, node_id, node_label, x, y, scale) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    )
+    db.delete(journal_placements)
+      .where(and(eq(journal_placements.group_id, groupId), eq(journal_placements.area, area)))
+      .run()
     for (const p of body.placements) {
-      insert.run(groupId, area, p.sticker_id, p.node_id, p.node_label, p.x ?? 0, p.y ?? 0, p.scale ?? 1.0)
+      db.insert(journal_placements).values({
+        group_id: groupId,
+        area,
+        sticker_id: p.sticker_id,
+        node_id: p.node_id,
+        node_label: p.node_label,
+        x: p.x ?? 0,
+        y: p.y ?? 0,
+        scale: p.scale ?? 1.0,
+      }).run()
     }
     return { ok: true }
   }, {

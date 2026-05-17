@@ -1,5 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
+import { device_submissions, device_check_results, flowchart_history, stickers } from '../schema'
+import { eq, and } from 'drizzle-orm'
 import { AREA_DEVICE_NODE_MAPPINGS } from '../areaFlowcharts'
 import { DEEPSEEK_CHAT_COMPLETIONS_URL, buildDeepSeekChatCompletionBody } from '../deepseek'
 
@@ -116,29 +118,42 @@ export const deviceCheckRouter = new Elysia()
     const groupId = Number(params.id)
     const { submission_id } = body
 
-    const submission = db.query(
-      'SELECT placements_json, mermaid_code, area FROM device_submissions WHERE id = ? AND group_id = ?'
-    ).get(submission_id, groupId) as { placements_json: string; mermaid_code: string | null; area: string | null } | null
+    const submission = db.select({
+      placements_json: device_submissions.placements_json,
+      mermaid_code: device_submissions.mermaid_code,
+      area: device_submissions.area,
+    })
+      .from(device_submissions)
+      .where(and(eq(device_submissions.id, submission_id), eq(device_submissions.group_id, groupId)))
+      .get() ?? null
 
     if (!submission) throw new Error('找不到对应的设备方案')
 
     const placements = JSON.parse(submission.placements_json) as PlacementInput[]
 
     const areaRow = !submission.area && submission.mermaid_code
-      ? db.query(
-          'SELECT area FROM flowchart_history WHERE group_id = ? AND mermaid_code = ? LIMIT 1'
-        ).get(groupId, submission.mermaid_code) as { area: string } | null
+      ? db.select({ area: flowchart_history.area })
+          .from(flowchart_history)
+          .where(and(eq(flowchart_history.group_id, groupId), eq(flowchart_history.mermaid_code, submission.mermaid_code)))
+          .limit(1)
+          .get() ?? null
       : null
     const area = submission.area ?? areaRow?.area ?? null
 
-    const stickers = (area
-      ? db.query('SELECT name, description FROM stickers WHERE install_location = ?').all(area)
-      : db.query('SELECT name, description FROM stickers').all()) as AvailableDevice[]
+    const availableDevices = (area
+      ? db.select({ name: stickers.name, description: stickers.description })
+          .from(stickers)
+          .where(eq(stickers.install_location, area))
+          .all()
+      : db.select({ name: stickers.name, description: stickers.description })
+          .from(stickers)
+          .all()
+    ) as AvailableDevice[]
 
     const prompt = buildDeviceCheckPrompt({
       mermaidCode: submission.mermaid_code,
       placements,
-      availableDevices: stickers,
+      availableDevices,
       correctMappings: area ? AREA_DEVICE_NODE_MAPPINGS[area] : undefined,
     })
 
@@ -168,9 +183,12 @@ export const deviceCheckRouter = new Elysia()
       submission.mermaid_code
     )
 
-    db.query(
-      'INSERT INTO device_check_results (group_id, submission_id, area, results_json) VALUES (?, ?, ?, ?)'
-    ).run(groupId, submission_id, area, JSON.stringify(results))
+    db.insert(device_check_results).values({
+      group_id: groupId,
+      submission_id,
+      area,
+      results_json: JSON.stringify(results),
+    }).run()
 
     return { results }
   }, {

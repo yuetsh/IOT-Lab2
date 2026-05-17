@@ -1,6 +1,7 @@
 import { writeFileSync, unlinkSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { db, reinitSchema } from './db'
+import { db, sqlite, reinitSchema } from './db'
+import { stickers, groups } from './schema'
 import { seedDevices, type SeedDevice } from './seedDevices'
 
 const groupNames = ['第一组', '第二组', '第三组', '第四组', '第五组', '第六组']
@@ -28,15 +29,15 @@ function writeSeedDeviceImage(device: SeedDevice, filename: string) {
 }
 
 export function clearAll() {
-  const tables = db.query(
+  const tables = sqlite.query(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
   ).all() as { name: string }[]
 
-  db.query('PRAGMA foreign_keys = OFF').run()
+  sqlite.query('PRAGMA foreign_keys = OFF').run()
   for (const { name } of tables) {
-    db.query(`DROP TABLE IF EXISTS "${name}"`).run()
+    sqlite.query(`DROP TABLE IF EXISTS "${name}"`).run()
   }
-  db.query('PRAGMA foreign_keys = ON').run()
+  sqlite.query('PRAGMA foreign_keys = ON').run()
 
   reinitSchema()
 
@@ -52,13 +53,17 @@ export function runSeed() {
     const device = seedDevices[i]
     const filename = seedDeviceFilename(i)
     writeSeedDeviceImage(device, filename)
-    db.query(
-      'INSERT INTO stickers (name, description, install_location, theme_color, filename) VALUES (?, ?, ?, ?, ?)'
-    ).run(device.name, device.description, device.install_location, device.theme_color, filename)
+    db.insert(stickers).values({
+      name: device.name,
+      description: device.description,
+      install_location: device.install_location,
+      theme_color: device.theme_color,
+      filename,
+    }).run()
   }
 
   for (const name of groupNames) {
-    db.query('INSERT INTO groups (name) VALUES (?)').run(name)
+    db.insert(groups).values({ name }).run()
   }
 
   console.log('✅ 种子数据写入完成')

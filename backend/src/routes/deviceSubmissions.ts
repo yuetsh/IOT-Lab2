@@ -1,5 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
+import { device_submissions } from '../schema'
+import { eq, and, isNull } from 'drizzle-orm'
 
 function normalizePlacements(placements: { sticker_id: number; node_id: string; node_label: string }[]) {
   return JSON.stringify(
@@ -15,9 +17,13 @@ export const deviceSubmissionsRouter = new Elysia()
     const mermaidCode = body.mermaid_code ?? null
     const normalizedNew = normalizePlacements(body.placements)
 
-    const existing = db.query(
-      'SELECT id, placements_json FROM device_submissions WHERE group_id = ? AND area IS ? AND mermaid_code IS ?'
-    ).all(groupId, area, mermaidCode) as { id: number; placements_json: string }[]
+    const areaCondition = area === null ? isNull(device_submissions.area) : eq(device_submissions.area, area)
+    const codeCondition = mermaidCode === null ? isNull(device_submissions.mermaid_code) : eq(device_submissions.mermaid_code, mermaidCode)
+
+    const existing = db.select({ id: device_submissions.id, placements_json: device_submissions.placements_json })
+      .from(device_submissions)
+      .where(and(eq(device_submissions.group_id, groupId), areaCondition, codeCondition))
+      .all()
 
     for (const sub of existing) {
       const parsed = JSON.parse(sub.placements_json) as { sticker_id: number; node_id: string; node_label: string }[]
@@ -26,10 +32,11 @@ export const deviceSubmissionsRouter = new Elysia()
       }
     }
 
-    const result = db.query(
-      'INSERT INTO device_submissions (group_id, area, placements_json, mermaid_code) VALUES (?, ?, ?, ?)'
-    ).run(groupId, area, JSON.stringify(body.placements), mermaidCode)
-    return { ok: true, submission_id: Number(result.lastInsertRowid) }
+    const inserted = db.insert(device_submissions)
+      .values({ group_id: groupId, area, placements_json: JSON.stringify(body.placements), mermaid_code: mermaidCode })
+      .returning({ id: device_submissions.id })
+      .get()
+    return { ok: true, submission_id: inserted.id }
   }, {
     body: t.Object({
       area: t.Optional(t.Nullable(t.String())),
@@ -44,9 +51,16 @@ export const deviceSubmissionsRouter = new Elysia()
     })
   })
   .get('/api/groups/:id/device-submissions', ({ params }) => {
-    const rows = db.query(
-      'SELECT id, area, placements_json, created_at FROM device_submissions WHERE group_id = ? ORDER BY created_at ASC'
-    ).all(Number(params.id)) as { id: number; area: string | null; placements_json: string; created_at: string }[]
+    const rows = db.select({
+      id: device_submissions.id,
+      area: device_submissions.area,
+      placements_json: device_submissions.placements_json,
+      created_at: device_submissions.created_at,
+    })
+      .from(device_submissions)
+      .where(eq(device_submissions.group_id, Number(params.id)))
+      .orderBy(device_submissions.created_at)
+      .all()
     return rows.map(r => ({
       id: r.id,
       area: r.area,

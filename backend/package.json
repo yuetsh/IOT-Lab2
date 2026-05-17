@@ -6,8 +6,9 @@
     "seed": "bun src/runSeed.ts"
   },
   "dependencies": {
-    "elysia": "latest",
-    "@elysiajs/cors": "latest"
+    "@elysiajs/cors": "latest",
+    "drizzle-orm": "^0.45.2",
+    "elysia": "latest"
   },
   "devDependencies": {
     "bun-types": "^1.3.14"

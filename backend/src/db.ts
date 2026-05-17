@@ -1,16 +1,19 @@
 import { Database } from 'bun:sqlite'
+import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { mkdirSync } from 'fs'
+import * as schema from './schema'
 
 export const dbPath = process.env.DATABASE_PATH ?? 'data.sqlite'
-export const db = new Database(dbPath, { create: true })
+export const sqlite = new Database(dbPath, { create: true })
+export const db = drizzle(sqlite, { schema })
 
 const uploadsDir = process.env.UPLOADS_PATH ?? 'uploads'
 mkdirSync(`${uploadsDir}/stickers`, { recursive: true })
 
 export function reinitSchema() {
-  db.query('PRAGMA foreign_keys = ON').run()
+  sqlite.query('PRAGMA foreign_keys = ON').run()
 
-  db.query(`
+  sqlite.query(`
     CREATE TABLE IF NOT EXISTS groups (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -19,12 +22,12 @@ export function reinitSchema() {
     )
   `).run()
 
-  const groupColumns = db.query('PRAGMA table_info(groups)').all() as { name: string }[]
+  const groupColumns = sqlite.query('PRAGMA table_info(groups)').all() as { name: string }[]
   if (!groupColumns.some(column => column.name === 'is_stats_excluded')) {
-    db.query('ALTER TABLE groups ADD COLUMN is_stats_excluded INTEGER NOT NULL DEFAULT 0').run()
+    sqlite.query('ALTER TABLE groups ADD COLUMN is_stats_excluded INTEGER NOT NULL DEFAULT 0').run()
   }
 
-  db.query(`
+  sqlite.query(`
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
@@ -35,7 +38,7 @@ export function reinitSchema() {
     )
   `).run()
 
-  db.query(`
+  sqlite.query(`
     CREATE TABLE IF NOT EXISTS flowcharts (
       group_id INTEGER PRIMARY KEY REFERENCES groups(id) ON DELETE CASCADE,
       mermaid_code TEXT NOT NULL,
@@ -44,7 +47,7 @@ export function reinitSchema() {
     )
   `).run()
 
-  db.query(`
+  sqlite.query(`
     CREATE TABLE IF NOT EXISTS flowchart_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
@@ -55,7 +58,7 @@ export function reinitSchema() {
     )
   `).run()
 
-  db.query(`
+  sqlite.query(`
     CREATE TABLE IF NOT EXISTS check_results (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
@@ -66,7 +69,7 @@ export function reinitSchema() {
     )
   `).run()
 
-  db.query(`
+  sqlite.query(`
     CREATE TABLE IF NOT EXISTS stickers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -78,7 +81,7 @@ export function reinitSchema() {
     )
   `).run()
 
-  db.query(`
+  sqlite.query(`
     CREATE TABLE IF NOT EXISTS journal_placements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
@@ -92,7 +95,7 @@ export function reinitSchema() {
     )
   `).run()
 
-  db.query(`
+  sqlite.query(`
     CREATE TABLE IF NOT EXISTS device_submissions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
@@ -103,7 +106,7 @@ export function reinitSchema() {
     )
   `).run()
 
-  db.query(`
+  sqlite.query(`
     CREATE TABLE IF NOT EXISTS device_check_results (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,

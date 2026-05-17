@@ -1,16 +1,27 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
+import { groups, messages, flowcharts, flowchart_history, check_results } from '../schema'
+import { eq, and, isNotNull, desc, asc } from 'drizzle-orm'
 
 export const groupsRouter = new Elysia({ prefix: '/api/groups' })
   .get('/', () => {
-    return db.query('SELECT id, name, is_stats_excluded, created_at FROM groups ORDER BY id').all()
+    return db.select({
+      id: groups.id,
+      name: groups.name,
+      is_stats_excluded: groups.is_stats_excluded,
+      created_at: groups.created_at,
+    }).from(groups).orderBy(asc(groups.id)).all()
   })
   .post('/', ({ body }) => {
     const { name } = body
     try {
-      db.query('INSERT INTO groups (name) VALUES (?)').run(name)
-      const group = db.query('SELECT id, name, is_stats_excluded, created_at FROM groups WHERE name = ?').get(name)
-      return group
+      db.insert(groups).values({ name }).run()
+      return db.select({
+        id: groups.id,
+        name: groups.name,
+        is_stats_excluded: groups.is_stats_excluded,
+        created_at: groups.created_at,
+      }).from(groups).where(eq(groups.name, name)).get()
     } catch {
       throw new Error('小组名已存在')
     }
@@ -18,38 +29,93 @@ export const groupsRouter = new Elysia({ prefix: '/api/groups' })
     body: t.Object({ name: t.String({ minLength: 1 }) })
   })
   .delete('/:id', ({ params }) => {
-    db.query('DELETE FROM groups WHERE id = ?').run(params.id)
+    db.delete(groups).where(eq(groups.id, Number(params.id))).run()
     return { ok: true }
   })
   .get('/:id/conversation', ({ params, query }) => {
     const { area, flowchartId } = query as Record<string, string | undefined>
-    const messages = area
-      ? db.query('SELECT id, role, content, created_at FROM messages WHERE group_id = ? AND area = ? ORDER BY created_at').all(params.id, area)
-      : db.query('SELECT id, role, content, created_at FROM messages WHERE group_id = ? ORDER BY created_at').all(params.id)
-    const flowchart = flowchartId
-      ? db.query('SELECT id, mermaid_code, area, created_at as updated_at FROM flowchart_history WHERE group_id = ? AND id = ?').get(params.id, flowchartId)
-      : area
-        ? db.query('SELECT id, mermaid_code, area, created_at as updated_at FROM flowchart_history WHERE group_id = ? AND area = ? ORDER BY created_at DESC, id DESC LIMIT 1').get(params.id, area)
-        : db.query('SELECT NULL as id, mermaid_code, area, updated_at FROM flowcharts WHERE group_id = ?').get(params.id)
-    return { messages, flowchart: flowchart ?? null }
+    const groupId = Number(params.id)
+
+    const msgs = area
+      ? db.select({ id: messages.id, role: messages.role, content: messages.content, created_at: messages.created_at })
+          .from(messages)
+          .where(and(eq(messages.group_id, groupId), eq(messages.area, area)))
+          .orderBy(asc(messages.created_at))
+          .all()
+      : db.select({ id: messages.id, role: messages.role, content: messages.content, created_at: messages.created_at })
+          .from(messages)
+          .where(eq(messages.group_id, groupId))
+          .orderBy(asc(messages.created_at))
+          .all()
+
+    let flowchart: { id: number | null; mermaid_code: string; area: string | null; updated_at: string | null } | null = null
+    if (flowchartId) {
+      flowchart = db.select({
+        id: flowchart_history.id,
+        mermaid_code: flowchart_history.mermaid_code,
+        area: flowchart_history.area,
+        updated_at: flowchart_history.created_at,
+      })
+        .from(flowchart_history)
+        .where(and(eq(flowchart_history.group_id, groupId), eq(flowchart_history.id, Number(flowchartId))))
+        .get() ?? null
+    } else if (area) {
+      flowchart = db.select({
+        id: flowchart_history.id,
+        mermaid_code: flowchart_history.mermaid_code,
+        area: flowchart_history.area,
+        updated_at: flowchart_history.created_at,
+      })
+        .from(flowchart_history)
+        .where(and(eq(flowchart_history.group_id, groupId), eq(flowchart_history.area, area)))
+        .orderBy(desc(flowchart_history.created_at), desc(flowchart_history.id))
+        .limit(1)
+        .get() ?? null
+    } else {
+      const fc = db.select({
+        mermaid_code: flowcharts.mermaid_code,
+        area: flowcharts.area,
+        updated_at: flowcharts.updated_at,
+      })
+        .from(flowcharts)
+        .where(eq(flowcharts.group_id, groupId))
+        .get()
+      flowchart = fc ? { id: null, ...fc } : null
+    }
+
+    return { messages: msgs, flowchart }
   })
   .get('/:id/areas-with-flowcharts', ({ params }) => {
-    const rows = db.query(
-      'SELECT DISTINCT area FROM flowchart_history WHERE group_id = ? AND area IS NOT NULL'
-    ).all(params.id) as { area: string }[]
+    const rows = db.selectDistinct({ area: flowchart_history.area })
+      .from(flowchart_history)
+      .where(and(eq(flowchart_history.group_id, Number(params.id)), isNotNull(flowchart_history.area)))
+      .all()
     return rows.map(r => r.area)
   })
   .get('/:id/flowchart-history', ({ params }) => {
-    const groupId = params.id
-    const histories = db.query(
-      'SELECT id, mermaid_code, area, created_at FROM flowchart_history WHERE group_id = ? ORDER BY created_at ASC'
-    ).all(groupId) as { id: number; mermaid_code: string; area: string | null; created_at: string }[]
+    const groupId = Number(params.id)
 
-    const checkRows = db.query(
-      'SELECT flowchart_history_id, results_json, created_at FROM check_results WHERE group_id = ? ORDER BY created_at ASC'
-    ).all(groupId) as { flowchart_history_id: number | null; results_json: string; created_at: string }[]
+    const histories = db.select({
+      id: flowchart_history.id,
+      mermaid_code: flowchart_history.mermaid_code,
+      area: flowchart_history.area,
+      created_at: flowchart_history.created_at,
+    })
+      .from(flowchart_history)
+      .where(eq(flowchart_history.group_id, groupId))
+      .orderBy(asc(flowchart_history.created_at))
+      .all()
 
-    // 按区域分组，每条 history 附带其 check_results
+    const checkRows = db.select({
+      flowchart_history_id: check_results.flowchart_history_id,
+      results_json: check_results.results_json,
+      created_at: check_results.created_at,
+    })
+      .from(check_results)
+      .where(eq(check_results.group_id, groupId))
+      .orderBy(asc(check_results.created_at))
+      .all()
+
     const byArea: Record<string, { id: number; mermaid_code: string; created_at: string; check_results: { passed: boolean; comment: string }[] | null }[]> = {}
     for (const h of histories) {
       const area = h.area ?? '未知区域'
@@ -58,7 +124,7 @@ export const groupsRouter = new Elysia({ prefix: '/api/groups' })
       byArea[area].push({
         id: h.id,
         mermaid_code: h.mermaid_code,
-        created_at: h.created_at,
+        created_at: h.created_at!,
         check_results: checks.length > 0 ? JSON.parse(checks[checks.length - 1].results_json) : null,
       })
     }

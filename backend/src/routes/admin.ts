@@ -1,5 +1,7 @@
 import { Elysia } from 'elysia'
 import { db } from '../db'
+import { groups, messages, flowcharts, flowchart_history, check_results, stickers, journal_placements, device_submissions, device_check_results } from '../schema'
+import { eq, and, isNotNull, desc, asc, count, sql } from 'drizzle-orm'
 import { clearAll, runSeed } from '../seed'
 import { runMockData } from '../mockData'
 
@@ -7,49 +9,75 @@ type CheckResult = { passed: boolean; comment: string }
 type CheckRun = { created_at: string; results: CheckResult[] }
 type HistoryEntry = { id: number; mermaid_code: string; created_at: string; user_prompt: string | null; check_runs: CheckRun[] }
 type GroupFull = { id: number; name: string; areas: Record<string, HistoryEntry[]>; device_submissions_count: number }
-type StatsGroup = { id: number; name: string; created_at: string }
+type StatsGroup = { id: number; name: string; created_at: string | null }
 
-const statsGroupsSql = 'SELECT id, name, created_at FROM groups WHERE is_stats_excluded = 0 ORDER BY name'
+const statsGroups = () => db.select({ id: groups.id, name: groups.name, created_at: groups.created_at })
+  .from(groups)
+  .where(eq(groups.is_stats_excluded, 0))
+  .orderBy(asc(groups.name))
+  .all() as StatsGroup[]
 
 export const adminRouter = new Elysia()
   .get('/api/admin/overview', () => {
-    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
-    return groups.map(g => {
-      const flowchart = db.query(
-        'SELECT mermaid_code, area, updated_at FROM flowcharts WHERE group_id = ?'
-      ).get(g.id)
-      const placements = db.query(`
-        SELECT jp.id, jp.sticker_id, jp.node_id, jp.node_label, jp.x, jp.y, jp.scale,
-               s.name as sticker_name, s.filename as sticker_filename
-        FROM journal_placements jp
-        JOIN stickers s ON s.id = jp.sticker_id
-        WHERE jp.group_id = ?
-          AND jp.node_id IS NOT NULL
-      `).all(g.id)
-      const messageCount = (db.query(
-        'SELECT COUNT(*) as cnt FROM messages WHERE group_id = ?'
-      ).get(g.id) as { cnt: number }).cnt
-      return { ...g, flowchart: flowchart ?? null, placements, messageCount }
+    return statsGroups().map(g => {
+      const flowchart = db.select({
+        mermaid_code: flowcharts.mermaid_code,
+        area: flowcharts.area,
+        updated_at: flowcharts.updated_at,
+      }).from(flowcharts).where(eq(flowcharts.group_id, g.id)).get() ?? null
+
+      const placements = db.select({
+        id: journal_placements.id,
+        sticker_id: journal_placements.sticker_id,
+        node_id: journal_placements.node_id,
+        node_label: journal_placements.node_label,
+        x: journal_placements.x,
+        y: journal_placements.y,
+        scale: journal_placements.scale,
+        sticker_name: stickers.name,
+        sticker_filename: stickers.filename,
+      })
+        .from(journal_placements)
+        .innerJoin(stickers, eq(stickers.id, journal_placements.sticker_id))
+        .where(and(eq(journal_placements.group_id, g.id), isNotNull(journal_placements.node_id)))
+        .all()
+
+      const messageCount = db.select({ cnt: count() }).from(messages).where(eq(messages.group_id, g.id)).get()?.cnt ?? 0
+      return { ...g, flowchart, placements, messageCount }
     })
   })
   .get('/api/admin/full', () => {
-    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
+    const groupList = statsGroups()
     const result: GroupFull[] = []
 
-    for (const g of groups) {
-      const histories = db.query(
-        'SELECT id, mermaid_code, area, user_prompt, created_at FROM flowchart_history WHERE group_id = ? ORDER BY created_at ASC'
-      ).all(g.id) as { id: number; mermaid_code: string; area: string | null; user_prompt: string | null; created_at: string }[]
+    for (const g of groupList) {
+      const histories = db.select({
+        id: flowchart_history.id,
+        mermaid_code: flowchart_history.mermaid_code,
+        area: flowchart_history.area,
+        user_prompt: flowchart_history.user_prompt,
+        created_at: flowchart_history.created_at,
+      })
+        .from(flowchart_history)
+        .where(eq(flowchart_history.group_id, g.id))
+        .orderBy(asc(flowchart_history.created_at))
+        .all()
 
-      const checkRows = db.query(
-        'SELECT flowchart_history_id, results_json, created_at FROM check_results WHERE group_id = ? ORDER BY created_at ASC'
-      ).all(g.id) as { flowchart_history_id: number | null; results_json: string; created_at: string }[]
+      const checkRows = db.select({
+        flowchart_history_id: check_results.flowchart_history_id,
+        results_json: check_results.results_json,
+        created_at: check_results.created_at,
+      })
+        .from(check_results)
+        .where(eq(check_results.group_id, g.id))
+        .orderBy(asc(check_results.created_at))
+        .all()
 
       const checkMap = new Map<number, CheckRun[]>()
       for (const c of checkRows) {
         if (c.flowchart_history_id != null) {
           if (!checkMap.has(c.flowchart_history_id)) checkMap.set(c.flowchart_history_id, [])
-          checkMap.get(c.flowchart_history_id)!.push({ created_at: c.created_at, results: JSON.parse(c.results_json) })
+          checkMap.get(c.flowchart_history_id)!.push({ created_at: c.created_at!, results: JSON.parse(c.results_json) })
         }
       }
 
@@ -60,16 +88,13 @@ export const adminRouter = new Elysia()
         areas[area].push({
           id: h.id,
           mermaid_code: h.mermaid_code,
-          created_at: h.created_at,
+          created_at: h.created_at!,
           user_prompt: h.user_prompt,
           check_runs: checkMap.get(h.id) ?? [],
         })
       }
 
-      const device_submissions_count = (db.query(
-        'SELECT COUNT(*) as cnt FROM device_submissions WHERE group_id = ?'
-      ).get(g.id) as { cnt: number }).cnt
-
+      const device_submissions_count = db.select({ cnt: count() }).from(device_submissions).where(eq(device_submissions.group_id, g.id)).get()?.cnt ?? 0
       result.push({ id: g.id, name: g.name, areas, device_submissions_count })
     }
 
@@ -77,34 +102,43 @@ export const adminRouter = new Elysia()
   })
   .get('/api/admin/device-placements', () => {
     const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
-    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
+    const groupList = statsGroups()
     type Placement = { sticker_id: number; node_id: string; node_label: string; sticker_name: string; sticker_filename: string }
     type CheckResultItem = { device_name: string; node_label: string; passed: boolean; comment: string }
-    type CheckResult = { passed_count: number; total_count: number; results: CheckResultItem[]; created_at: string }
-    type AreaData = { mermaid_code: string | null; placements: Placement[]; submission_created_at: string | null; check_result: CheckResult | null; check_results: CheckResult[]; check_count: number }
+    type CheckResultSummary = { passed_count: number; total_count: number; results: CheckResultItem[]; created_at: string }
+    type AreaData = { mermaid_code: string | null; placements: Placement[]; submission_created_at: string | null; check_result: CheckResultSummary | null; check_results: CheckResultSummary[]; check_count: number }
 
     const result = []
-    for (const g of groups) {
-      // 每个区域最新的流程图（fallback 用）
+    for (const g of groupList) {
       const latestFlowchart: Record<string, string> = {}
       for (const area of AREAS) {
-        const fh = db.query(
-          'SELECT mermaid_code FROM flowchart_history WHERE group_id = ? AND area = ? ORDER BY created_at DESC LIMIT 1'
-        ).get(g.id, area) as { mermaid_code: string } | null
+        const fh = db.select({ mermaid_code: flowchart_history.mermaid_code })
+          .from(flowchart_history)
+          .where(and(eq(flowchart_history.group_id, g.id), eq(flowchart_history.area, area)))
+          .orderBy(desc(flowchart_history.created_at))
+          .limit(1)
+          .get() ?? null
         if (fh) latestFlowchart[area] = fh.mermaid_code
       }
 
-      // 建立 mermaid_code → area 映射
-      const allHistory = db.query(
-        'SELECT mermaid_code, area FROM flowchart_history WHERE group_id = ? AND area IS NOT NULL'
-      ).all(g.id) as { mermaid_code: string; area: string }[]
+      const allHistory = db.select({ mermaid_code: flowchart_history.mermaid_code, area: flowchart_history.area })
+        .from(flowchart_history)
+        .where(and(eq(flowchart_history.group_id, g.id), isNotNull(flowchart_history.area)))
+        .all() as { mermaid_code: string; area: string }[]
       const codeToArea = new Map<string, string>()
       for (const fh of allHistory) codeToArea.set(fh.mermaid_code, fh.area)
 
-      // 所有提交，从新到旧，每个区域只取最新一次
-      const submissions = db.query(
-        'SELECT id, area, placements_json, created_at, mermaid_code FROM device_submissions WHERE group_id = ? ORDER BY created_at DESC'
-      ).all(g.id) as { id: number; area: string | null; placements_json: string; created_at: string; mermaid_code: string | null }[]
+      const submissions = db.select({
+        id: device_submissions.id,
+        area: device_submissions.area,
+        placements_json: device_submissions.placements_json,
+        created_at: device_submissions.created_at,
+        mermaid_code: device_submissions.mermaid_code,
+      })
+        .from(device_submissions)
+        .where(eq(device_submissions.group_id, g.id))
+        .orderBy(desc(device_submissions.created_at))
+        .all()
 
       const areaResult: Record<string, AreaData> = {}
       for (const sub of submissions) {
@@ -112,31 +146,31 @@ export const adminRouter = new Elysia()
         const area = sub.area ?? codeToArea.get(sub.mermaid_code)
         if (!area || areaResult[area]) continue
 
-        // 聚合该组该区域同一流程图所有 submissions 的检测记录
-        const checkRows = db.query(`
-          SELECT dcr.results_json, dcr.created_at
-          FROM device_check_results dcr
-          JOIN device_submissions ds ON dcr.submission_id = ds.id
-          WHERE ds.group_id = ? AND ds.mermaid_code = ?
-          ORDER BY dcr.created_at DESC
-        `).all(g.id, sub.mermaid_code) as { results_json: string; created_at: string }[]
+        const checkRows = db.select({
+          results_json: device_check_results.results_json,
+          created_at: device_check_results.created_at,
+        })
+          .from(device_check_results)
+          .innerJoin(device_submissions, eq(device_check_results.submission_id, device_submissions.id))
+          .where(and(eq(device_submissions.group_id, g.id), eq(device_submissions.mermaid_code, sub.mermaid_code)))
+          .orderBy(desc(device_check_results.created_at))
+          .all()
 
-        const check_results: CheckResult[] = checkRows.map(row => {
+        const check_result_list: CheckResultSummary[] = checkRows.map(row => {
           const results = JSON.parse(row.results_json) as CheckResultItem[]
-          return { passed_count: results.filter(r => r.passed).length, total_count: results.length, results, created_at: row.created_at }
+          return { passed_count: results.filter(r => r.passed).length, total_count: results.length, results, created_at: row.created_at! }
         })
 
         areaResult[area] = {
           mermaid_code: sub.mermaid_code,
           placements: JSON.parse(sub.placements_json) as Placement[],
           submission_created_at: sub.created_at,
-          check_result: check_results[0] ?? null,
-          check_results,
-          check_count: check_results.length,
+          check_result: check_result_list[0] ?? null,
+          check_results: check_result_list,
+          check_count: check_result_list.length,
         }
       }
 
-      // 没有提交的区域：用最新流程图填充，放置列表为空
       for (const area of AREAS) {
         if (!areaResult[area]) {
           areaResult[area] = {
@@ -156,16 +190,11 @@ export const adminRouter = new Elysia()
   })
   .get('/api/admin/summary', () => {
     const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
-    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
+    const groupList = statsGroups()
 
-    const groupSummaries = groups.map(g => {
-      const messageCount = (db.query(
-        'SELECT COUNT(*) as cnt FROM messages WHERE group_id = ?'
-      ).get(g.id) as { cnt: number }).cnt
-
-      const userMessageCount = (db.query(
-        "SELECT COUNT(*) as cnt FROM messages WHERE group_id = ? AND role = 'user'"
-      ).get(g.id) as { cnt: number }).cnt
+    const groupSummaries = groupList.map(g => {
+      const messageCount = db.select({ cnt: count() }).from(messages).where(eq(messages.group_id, g.id)).get()?.cnt ?? 0
+      const userMessageCount = db.select({ cnt: count() }).from(messages).where(and(eq(messages.group_id, g.id), eq(messages.role, 'user'))).get()?.cnt ?? 0
 
       const areaSummaries: Record<string, {
         flowchart_count: number
@@ -178,20 +207,27 @@ export const adminRouter = new Elysia()
       }> = {}
 
       for (const area of AREAS) {
-        const flowchartCount = (db.query(
-          'SELECT COUNT(*) as cnt FROM flowchart_history WHERE group_id = ? AND area = ?'
-        ).get(g.id, area) as { cnt: number }).cnt
+        const flowchartCount = db.select({ cnt: count() })
+          .from(flowchart_history)
+          .where(and(eq(flowchart_history.group_id, g.id), eq(flowchart_history.area, area)))
+          .get()?.cnt ?? 0
 
-        const latestHistory = db.query(
-          'SELECT id FROM flowchart_history WHERE group_id = ? AND area = ? ORDER BY created_at DESC LIMIT 1'
-        ).get(g.id, area) as { id: number } | null
+        const latestHistory = db.select({ id: flowchart_history.id })
+          .from(flowchart_history)
+          .where(and(eq(flowchart_history.group_id, g.id), eq(flowchart_history.area, area)))
+          .orderBy(desc(flowchart_history.created_at))
+          .limit(1)
+          .get() ?? null
 
         let latestCheckPassed = 0
         let latestCheckTotal = 0
         if (latestHistory) {
-          const checkRow = db.query(
-            'SELECT results_json FROM check_results WHERE group_id = ? AND flowchart_history_id = ? ORDER BY created_at DESC LIMIT 1'
-          ).get(g.id, latestHistory.id) as { results_json: string } | null
+          const checkRow = db.select({ results_json: check_results.results_json })
+            .from(check_results)
+            .where(and(eq(check_results.group_id, g.id), eq(check_results.flowchart_history_id, latestHistory.id)))
+            .orderBy(desc(check_results.created_at))
+            .limit(1)
+            .get() ?? null
           if (checkRow) {
             const results = JSON.parse(checkRow.results_json) as { passed: boolean }[]
             latestCheckTotal = results.length
@@ -199,16 +235,22 @@ export const adminRouter = new Elysia()
           }
         }
 
-        const deviceSub = db.query(
-          'SELECT id FROM device_submissions WHERE group_id = ? AND area = ? ORDER BY created_at DESC LIMIT 1'
-        ).get(g.id, area) as { id: number } | null
+        const deviceSub = db.select({ id: device_submissions.id })
+          .from(device_submissions)
+          .where(and(eq(device_submissions.group_id, g.id), eq(device_submissions.area, area)))
+          .orderBy(desc(device_submissions.created_at))
+          .limit(1)
+          .get() ?? null
 
         let deviceCheckPassed = 0
         let deviceCheckTotal = 0
         if (deviceSub) {
-          const dcRow = db.query(
-            'SELECT results_json FROM device_check_results WHERE submission_id = ? ORDER BY created_at DESC LIMIT 1'
-          ).get(deviceSub.id) as { results_json: string } | null
+          const dcRow = db.select({ results_json: device_check_results.results_json })
+            .from(device_check_results)
+            .where(eq(device_check_results.submission_id, deviceSub.id))
+            .orderBy(desc(device_check_results.created_at))
+            .limit(1)
+            .get() ?? null
           if (dcRow) {
             const results = JSON.parse(dcRow.results_json) as { passed: boolean }[]
             deviceCheckTotal = results.length
@@ -247,7 +289,7 @@ export const adminRouter = new Elysia()
       }
     })
 
-    const totalGroups = groups.length
+    const totalGroups = groupList.length
     const avgMessages = totalGroups > 0 ? Math.round(groupSummaries.reduce((s, g) => s + g.user_message_count, 0) / totalGroups) : 0
     const avgFlowcharts = totalGroups > 0 ? Math.round(groupSummaries.reduce((s, g) => s + g.total_flowcharts, 0) / totalGroups * 10) / 10 : 0
     const allAreasComplete = groupSummaries.filter(g => g.completed_areas === 6).length
@@ -266,17 +308,19 @@ export const adminRouter = new Elysia()
   })
   .get('/api/admin/progress', () => {
     const AREAS = ['大门区域', '身份识别', '大厅安防', 'LED显示', '绿色植物', '自助系统']
-    const groups = db.query(statsGroupsSql).all() as StatsGroup[]
+    const groupList = statsGroups()
 
-    // 1. 各次检测通过率趋势（每组按时间排列的所有检测记录）
-    const checkTrend = groups.map(g => {
-      const rows = db.query(`
-        SELECT cr.results_json, cr.created_at, fh.area
-        FROM check_results cr
-        JOIN flowchart_history fh ON cr.flowchart_history_id = fh.id
-        WHERE cr.group_id = ?
-        ORDER BY cr.created_at ASC
-      `).all(g.id) as { results_json: string; created_at: string; area: string }[]
+    const checkTrend = groupList.map(g => {
+      const rows = db.select({
+        results_json: check_results.results_json,
+        created_at: check_results.created_at,
+        area: flowchart_history.area,
+      })
+        .from(check_results)
+        .innerJoin(flowchart_history, eq(check_results.flowchart_history_id, flowchart_history.id))
+        .where(eq(check_results.group_id, g.id))
+        .orderBy(asc(check_results.created_at))
+        .all() as { results_json: string; created_at: string; area: string }[]
 
       const checks = rows.map((r, i) => {
         const results = JSON.parse(r.results_json) as { passed: boolean }[]
@@ -286,22 +330,21 @@ export const adminRouter = new Elysia()
       return { group_id: g.id, group_name: g.name, checks }
     })
 
-    // 2. 全局完成排名：所有组所有区域放一个池，按时间统一排序
     const parseTs = (s: string) => new Date(s.replace(' ', 'T')).getTime()
-
     const allCompletions: { group_id: number; area: string; ts: number; time: string }[] = []
+
     for (const area of AREAS) {
-      const rows = db.query(`
+      const rows = db.all(sql`
         SELECT cr.group_id, MAX(cr.created_at) as last_passed_at
         FROM check_results cr
         JOIN groups g ON g.id = cr.group_id
-        WHERE cr.area = ?
+        WHERE cr.area = ${area}
           AND g.is_stats_excluded = 0
           AND NOT EXISTS (
             SELECT 1 FROM json_each(cr.results_json) WHERE json_extract(value, '$.passed') = 0
           )
         GROUP BY cr.group_id
-      `).all(area) as { group_id: number; last_passed_at: string }[]
+      `) as { group_id: number; last_passed_at: string }[]
 
       for (const r of rows) {
         allCompletions.push({ group_id: r.group_id, area, ts: parseTs(r.last_passed_at), time: r.last_passed_at })
@@ -311,7 +354,7 @@ export const adminRouter = new Elysia()
     allCompletions.sort((a, b) => a.ts - b.ts)
     const globalTotal = allCompletions.length
 
-    const completionTimeline = groups.map(g => ({
+    const completionTimeline = groupList.map(g => ({
       group_id: g.id,
       group_name: g.name,
       areas: Object.fromEntries(AREAS.map(a => [a, null as { rank: number; total: number; time: string } | null])),
@@ -325,15 +368,20 @@ export const adminRouter = new Elysia()
     return { checkTrend, completionTimeline }
   })
   .post('/api/admin/judge-group', () => {
-    db.query(`
-      INSERT INTO groups (name, is_stats_excluded)
-      VALUES (?, 1)
-      ON CONFLICT(name) DO UPDATE SET is_stats_excluded = 1
-    `).run('评委体验')
+    db.insert(groups)
+      .values({ name: '评委体验', is_stats_excluded: 1 })
+      .onConflictDoUpdate({
+        target: groups.name,
+        set: { is_stats_excluded: 1 },
+      })
+      .run()
 
-    return db.query(
-      'SELECT id, name, is_stats_excluded, created_at FROM groups WHERE name = ?'
-    ).get('评委体验')
+    return db.select({
+      id: groups.id,
+      name: groups.name,
+      is_stats_excluded: groups.is_stats_excluded,
+      created_at: groups.created_at,
+    }).from(groups).where(eq(groups.name, '评委体验')).get()
   })
   .post('/api/admin/clear', () => {
     clearAll()

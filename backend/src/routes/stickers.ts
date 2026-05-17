@@ -1,5 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
+import { stickers } from '../schema'
+import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { extname, join } from 'path'
@@ -9,7 +11,7 @@ const stickersDir = join(uploadsDir, 'stickers')
 
 export const stickersRouter = new Elysia({ prefix: '/api/stickers' })
   .get('/', () => {
-    return db.query('SELECT * FROM stickers ORDER BY name').all()
+    return db.select().from(stickers).orderBy(stickers.name).all()
   })
   .post('/', async ({ body }) => {
     const { name, description = '', install_location = '', theme_color = '#4299e1', image } = body
@@ -17,11 +19,8 @@ export const stickersRouter = new Elysia({ prefix: '/api/stickers' })
     const filename = `${randomUUID()}${ext}`
     const bytes = await image.arrayBuffer()
     writeFileSync(join(stickersDir, filename), Buffer.from(bytes))
-    db.query(
-      'INSERT INTO stickers (name, description, install_location, theme_color, filename) VALUES (?, ?, ?, ?, ?)'
-    ).run(name, description, install_location, theme_color, filename)
-    const sticker = db.query('SELECT * FROM stickers WHERE filename = ?').get(filename)
-    return sticker
+    db.insert(stickers).values({ name, description, install_location, theme_color, filename }).run()
+    return db.select().from(stickers).where(eq(stickers.filename, filename)).get()
   }, {
     body: t.Object({
       name: t.String({ minLength: 1 }),
@@ -32,14 +31,15 @@ export const stickersRouter = new Elysia({ prefix: '/api/stickers' })
     })
   })
   .put('/:id', async ({ params, body, set }) => {
-    const sticker = db.query('SELECT filename FROM stickers WHERE id = ?').get(params.id) as { filename: string } | null
-    if (!sticker) {
+    const stickerId = Number(params.id)
+    const existing = db.select({ filename: stickers.filename }).from(stickers).where(eq(stickers.id, stickerId)).get()
+    if (!existing) {
       set.status = 404
       return { error: 'Sticker not found' }
     }
 
     const { name, description = '', install_location = '', theme_color = '#4299e1', image } = body
-    let filename = sticker.filename
+    let filename = existing.filename
     if (image) {
       const ext = extname(image.name) || '.png'
       filename = `${randomUUID()}${ext}`
@@ -47,14 +47,16 @@ export const stickersRouter = new Elysia({ prefix: '/api/stickers' })
       writeFileSync(join(stickersDir, filename), Buffer.from(bytes))
     }
 
-    db.query(
-      'UPDATE stickers SET name = ?, description = ?, install_location = ?, theme_color = ?, filename = ? WHERE id = ?'
-    ).run(name, description, install_location, theme_color, filename, params.id)
-    if (image && sticker.filename !== filename) {
-      try { unlinkSync(join(stickersDir, sticker.filename)) } catch {}
+    db.update(stickers)
+      .set({ name, description, install_location, theme_color, filename })
+      .where(eq(stickers.id, stickerId))
+      .run()
+
+    if (image && existing.filename !== filename) {
+      try { unlinkSync(join(stickersDir, existing.filename)) } catch {}
     }
 
-    return db.query('SELECT * FROM stickers WHERE id = ?').get(params.id)
+    return db.select().from(stickers).where(eq(stickers.id, stickerId)).get()
   }, {
     body: t.Object({
       name: t.String({ minLength: 1 }),
@@ -65,21 +67,23 @@ export const stickersRouter = new Elysia({ prefix: '/api/stickers' })
     })
   })
   .delete('/:id', ({ params }) => {
-    const sticker = db.query('SELECT filename FROM stickers WHERE id = ?').get(params.id) as { filename: string } | null
-    if (sticker) {
-      try { unlinkSync(join(stickersDir, sticker.filename)) } catch {}
-      db.query('DELETE FROM stickers WHERE id = ?').run(params.id)
+    const stickerId = Number(params.id)
+    const existing = db.select({ filename: stickers.filename }).from(stickers).where(eq(stickers.id, stickerId)).get()
+    if (existing) {
+      try { unlinkSync(join(stickersDir, existing.filename)) } catch {}
+      db.delete(stickers).where(eq(stickers.id, stickerId)).run()
     }
     return { ok: true }
   })
   .get('/:id/image', ({ params, set }) => {
-    const sticker = db.query('SELECT filename FROM stickers WHERE id = ?').get(params.id) as { filename: string } | null
-    if (!sticker) { set.status = 404; return 'Not found' }
-    const ext = extname(sticker.filename).toLowerCase()
+    const stickerId = Number(params.id)
+    const existing = db.select({ filename: stickers.filename }).from(stickers).where(eq(stickers.id, stickerId)).get()
+    if (!existing) { set.status = 404; return 'Not found' }
+    const ext = extname(existing.filename).toLowerCase()
     const mimeMap: Record<string, string> = {
       '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
       '.svg': 'image/svg+xml', '.webp': 'image/webp'
     }
     set.headers['content-type'] = mimeMap[ext] ?? 'application/octet-stream'
-    return readFileSync(join(stickersDir, sticker.filename))
+    return readFileSync(join(stickersDir, existing.filename))
   })

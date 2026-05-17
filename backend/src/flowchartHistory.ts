@@ -1,4 +1,5 @@
-import type { Database } from 'bun:sqlite'
+import { db } from './db'
+import { flowchart_history } from './schema'
 
 type InsertFlowchartHistoryInput = {
   groupId: number
@@ -7,9 +8,11 @@ type InsertFlowchartHistoryInput = {
   userPrompt?: string | null
 }
 
-export function insertFlowchartHistory(db: Database, input: InsertFlowchartHistoryInput) {
-  db.query(`
-    INSERT INTO flowchart_history (group_id, mermaid_code, area, user_prompt)
-    VALUES (?, ?, ?, ?)
-  `).run(input.groupId, input.mermaidCode, input.area ?? null, input.userPrompt ?? null)
+export function insertFlowchartHistory(input: InsertFlowchartHistoryInput) {
+  db.insert(flowchart_history).values({
+    group_id: input.groupId,
+    mermaid_code: input.mermaidCode,
+    area: input.area ?? null,
+    user_prompt: input.userPrompt ?? null,
+  }).run()
 }

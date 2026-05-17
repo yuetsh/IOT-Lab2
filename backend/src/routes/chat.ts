@@ -1,5 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
+import { messages, flowcharts, flowchart_history, check_results, journal_placements } from '../schema'
+import { eq, and, desc, sql } from 'drizzle-orm'
 import { buildDeepSeekMessages } from '../chatContext'
 import { AREA_REFERENCE_FLOWCHARTS } from '../areaFlowcharts'
 import { shouldClearJournalPlacementsForFlowchartChange } from '../flowchartState'
@@ -47,25 +49,38 @@ export const chatRouter = new Elysia()
     const groupId = Number(params.id)
     const { message, area, userPrompt } = body
 
-    const history = area
-      ? db.query(
-        'SELECT role, content FROM messages WHERE group_id = ? AND area = ? ORDER BY created_at DESC, id DESC LIMIT 8'
-      ).all(groupId, area).reverse()
-      : db.query(
-        'SELECT role, content FROM messages WHERE group_id = ? ORDER BY created_at DESC, id DESC LIMIT 8'
-      ).all(groupId).reverse()
+    const history = (area
+      ? db.select({ role: messages.role, content: messages.content })
+          .from(messages)
+          .where(and(eq(messages.group_id, groupId), eq(messages.area, area)))
+          .orderBy(desc(messages.created_at), desc(messages.id))
+          .limit(8)
+          .all()
+          .reverse()
+      : db.select({ role: messages.role, content: messages.content })
+          .from(messages)
+          .where(eq(messages.group_id, groupId))
+          .orderBy(desc(messages.created_at), desc(messages.id))
+          .limit(8)
+          .all()
+          .reverse()
+    ) as { role: 'user' | 'assistant'; content: string }[]
 
     const latestFlowchart = area
-      ? db.query(
-        'SELECT mermaid_code FROM flowchart_history WHERE group_id = ? AND area = ? ORDER BY created_at DESC, id DESC LIMIT 1'
-      ).get(groupId, area) as { mermaid_code: string } | null
+      ? db.select({ mermaid_code: flowchart_history.mermaid_code })
+          .from(flowchart_history)
+          .where(and(eq(flowchart_history.group_id, groupId), eq(flowchart_history.area, area)))
+          .orderBy(desc(flowchart_history.created_at), desc(flowchart_history.id))
+          .limit(1)
+          .get() ?? null
       : null
-    const currentSavedFlowchart = db.query(
-      'SELECT mermaid_code FROM flowcharts WHERE group_id = ?'
-    ).get(groupId) as { mermaid_code: string } | null
 
-    // 保存用户消息（含区域）
-    db.query('INSERT INTO messages (group_id, role, content, area) VALUES (?, ?, ?, ?)').run(groupId, 'user', message, area ?? null)
+    const currentSavedFlowchart = db.select({ mermaid_code: flowcharts.mermaid_code })
+      .from(flowcharts)
+      .where(eq(flowcharts.group_id, groupId))
+      .get() ?? null
+
+    db.insert(messages).values({ group_id: groupId, role: 'user', content: message, area: area ?? null }).run()
 
     const apiKey = process.env.DEEPSEEK_API_KEY
     if (!apiKey) throw new Error('DEEPSEEK_API_KEY 未配置')
@@ -82,7 +97,7 @@ export const chatRouter = new Elysia()
           area: area ?? null,
           latestMermaidCode: latestFlowchart?.mermaid_code ?? null,
           referenceFlowchart: area ? (AREA_REFERENCE_FLOWCHARTS[area] ?? null) : null,
-          history: history as { role: 'user' | 'assistant'; content: string }[],
+          history,
           userMessage: message,
         })
       ))
@@ -96,27 +111,22 @@ export const chatRouter = new Elysia()
     const data = await response.json() as { choices: { message: { content: string } }[] }
     const assistantContent = data.choices[0].message.content
 
-    // 保存 assistant 回复（含区域）
-    db.query('INSERT INTO messages (group_id, role, content, area) VALUES (?, ?, ?, ?)').run(groupId, 'assistant', assistantContent, area ?? null)
+    db.insert(messages).values({ group_id: groupId, role: 'assistant', content: assistantContent, area: area ?? null }).run()
 
-    // 提取并保存 Mermaid 代码
     const match = MERMAID_REGEX.exec(assistantContent)
     if (match) {
       const mermaidCode = match[1].trim().replace(/ +(:::)/g, '$1')
       if (shouldClearJournalPlacementsForFlowchartChange(currentSavedFlowchart?.mermaid_code ?? null, mermaidCode)) {
-        db.query('DELETE FROM journal_placements WHERE group_id = ?').run(groupId)
+        db.delete(journal_placements).where(eq(journal_placements.group_id, groupId)).run()
       }
-      db.query(`
-        INSERT INTO flowcharts (group_id, mermaid_code, area, updated_at)
-        VALUES (?, ?, ?, datetime('now'))
-        ON CONFLICT(group_id) DO UPDATE SET mermaid_code = excluded.mermaid_code, area = excluded.area, updated_at = excluded.updated_at
-      `).run(groupId, mermaidCode, area ?? null)
-      insertFlowchartHistory(db, {
-        groupId,
-        mermaidCode,
-        area: area ?? null,
-        userPrompt: userPrompt ?? null,
-      })
+      db.insert(flowcharts)
+        .values({ group_id: groupId, mermaid_code: mermaidCode, area: area ?? null, updated_at: sql`datetime('now')` })
+        .onConflictDoUpdate({
+          target: flowcharts.group_id,
+          set: { mermaid_code: mermaidCode, area: area ?? null, updated_at: sql`datetime('now')` },
+        })
+        .run()
+      insertFlowchartHistory({ groupId, mermaidCode, area: area ?? null, userPrompt: userPrompt ?? null })
     }
 
     return { content: assistantContent }
@@ -168,13 +178,19 @@ ${criteria.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}
     if (!jsonMatch) throw new Error('AI 返回格式错误')
     const results = JSON.parse(jsonMatch[0]) as { passed: boolean; comment: string }[]
 
-    // 关联到该组该区域最新的 flowchart_history 条目
-    const latestHistory = db.query(
-      'SELECT id FROM flowchart_history WHERE group_id = ? AND area = ? ORDER BY created_at DESC LIMIT 1'
-    ).get(groupId, area) as { id: number } | null
-    db.query(
-      'INSERT INTO check_results (group_id, flowchart_history_id, area, results_json) VALUES (?, ?, ?, ?)'
-    ).run(groupId, latestHistory?.id ?? null, area, JSON.stringify(results))
+    const latestHistory = db.select({ id: flowchart_history.id })
+      .from(flowchart_history)
+      .where(and(eq(flowchart_history.group_id, groupId), eq(flowchart_history.area, area)))
+      .orderBy(desc(flowchart_history.created_at))
+      .limit(1)
+      .get() ?? null
+
+    db.insert(check_results).values({
+      group_id: groupId,
+      flowchart_history_id: latestHistory?.id ?? null,
+      area,
+      results_json: JSON.stringify(results),
+    }).run()
 
     return { results }
   }, {
